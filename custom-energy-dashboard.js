@@ -163,6 +163,8 @@ const DASHBOARD_VIEWS = {
   },
 };
 
+const DEFAULT_VIEW_KEYS = Object.keys(DASHBOARD_VIEWS);
+
 const DEFAULT_CONFIG = {
   view: "electricity",
   show_view_tabs: true,
@@ -171,6 +173,9 @@ const DEFAULT_CONFIG = {
   group_by_floor: true,
   group_by_area: true,
   layout: "auto",
+  visible_tabs: DEFAULT_VIEW_KEYS,
+  hidden_tabs: [],
+  tab_options: {},
   card_options: {},
   hidden_cards: [],
 };
@@ -204,19 +209,47 @@ const normalizeConfig = (config, defaults = DEFAULT_CONFIG) => ({
   ...clone(config),
 });
 
-const extraConfigForCard = (config, key, type) => ({
-  ...clone(config.card_options?.[type]),
-  ...clone(config.card_options?.[key]),
+const displayedViews = (config) => {
+  const hidden = new Set(config.hidden_tabs || []);
+  const visible = config.visible_tabs?.length ? new Set(config.visible_tabs) : undefined;
+  const views = DEFAULT_VIEW_KEYS.filter(
+    (view) => (visible ? visible.has(view) : !hidden.has(view)) && !hidden.has(view)
+  );
+  return views.length ? views : [config.view || DEFAULT_CONFIG.view];
+};
+
+const currentViewKey = (config) => {
+  const views = displayedViews(config);
+  return views.includes(config.view) ? config.view : views[0];
+};
+
+const tabConfig = (config, viewKey = currentViewKey(config)) => ({
+  ...config,
+  ...clone(config.tab_options?.[viewKey]),
 });
 
-const dashboardCardConfig = (card, config) => {
+const tabCardOptions = (config, viewKey) => ({
+  ...clone(config.card_options),
+  ...clone(config.tab_options?.[viewKey]?.card_options),
+});
+
+const extraConfigForTabCard = (config, viewKey, key, type) => {
+  const options = tabCardOptions(config, viewKey);
+  return {
+    ...clone(options[type]),
+    ...clone(options[key]),
+  };
+};
+
+const dashboardCardConfig = (card, config, viewKey) => {
+  const options = tabConfig(config, viewKey);
   const result = {
     ...clone(card),
-    ...extraConfigForCard(config, card.key, card.type),
+    ...extraConfigForTabCard(config, viewKey, card.key, card.type),
   };
 
-  applyCommonCardOptions(result, config);
-  applyTypeOptions(result, config, result.type);
+  applyCommonCardOptions(result, options);
+  applyTypeOptions(result, options, result.type);
   delete result.key;
 
   return result;
@@ -240,17 +273,77 @@ const applyTypeOptions = (result, config, cardType) => {
   }
 };
 
-const viewCards = (config) => {
-  const view = DASHBOARD_VIEWS[config.view] || DASHBOARD_VIEWS.electricity;
-  const hidden = new Set(config.hidden_cards || []);
-  const enabled = config.enabled_cards?.length ? new Set(config.enabled_cards) : undefined;
+const viewCards = (config, viewKey = currentViewKey(config)) => {
+  const view = DASHBOARD_VIEWS[viewKey] || DASHBOARD_VIEWS.electricity;
+  const options = tabConfig(config, viewKey);
+  const hidden = new Set([
+    ...hiddenCardsFor(config.hidden_cards, viewKey),
+    ...hiddenCardsFor(config.tab_options?.[viewKey]?.hidden_cards, viewKey),
+  ]);
+  const enabledCards = options.enabled_cards || config.enabled_cards;
+  const enabled = enabledCards?.length ? new Set(enabledCards) : undefined;
+  const cardOrder = options.card_order || config.card_order;
+  const cards = [...view.cards];
 
-  return view.cards.filter((card) => {
-    if (!config.show_date_selection && card.type === "energy-date-selection") {
+  if (cardOrder?.length) {
+    const order = new Map(cardOrder.map((key, index) => [key, index]));
+    cards.sort((a, b) => {
+      const aIndex = order.has(a.key) ? order.get(a.key) : order.has(a.type) ? order.get(a.type) : 999;
+      const bIndex = order.has(b.key) ? order.get(b.key) : order.has(b.type) ? order.get(b.type) : 999;
+      return aIndex - bIndex;
+    });
+  }
+
+  return cards.filter((card) => {
+    if (!options.show_date_selection && card.type === "energy-date-selection") {
       return false;
     }
     return enabled ? enabled.has(card.key) || enabled.has(card.type) : !hidden.has(card.key) && !hidden.has(card.type);
   });
+};
+
+const hiddenCardsFor = (hiddenCards, viewKey) => {
+  if (!hiddenCards) {
+    return [];
+  }
+  if (Array.isArray(hiddenCards)) {
+    return hiddenCards;
+  }
+  return hiddenCards[viewKey] || [];
+};
+
+const cardLayoutFor = (config, viewKey, card) => {
+  const layout = {
+    ...clone(config.card_layout),
+    ...clone(config.tab_options?.[viewKey]?.card_layout),
+  };
+  return layout[card.key] || layout[card.type];
+};
+
+const gridStyle = (options) => {
+  const gap = Number(options.gap || 12);
+  const minWidth = Number(options.min_card_width || 280);
+  return `--energy-dashboard-gap: ${gap}px; --energy-dashboard-min-card-width: ${minWidth}px;`;
+};
+
+const gridClass = (options) => {
+  const columns = String(options.columns || "auto");
+  return ["1", "2", "3", "4"].includes(columns) ? `grid columns-${columns}` : "grid";
+};
+
+const applyCardLayout = (element, layout) => {
+  if (!layout) {
+    element.style.removeProperty("grid-column");
+    return;
+  }
+  if (layout === "full" || layout.full_width) {
+    element.style.gridColumn = "1 / -1";
+    return;
+  }
+  const span = Number(typeof layout === "object" ? layout.columns : layout);
+  if (Number.isFinite(span) && span > 1) {
+    element.style.gridColumn = `span ${Math.min(span, 4)}`;
+  }
 };
 
 const renderError = (mount, message) => {
@@ -303,7 +396,7 @@ class EditableEnergyDashboard extends HTMLElement {
   }
 
   getCardSize() {
-    return Math.max(6, viewCards(this._config).length * 2);
+    return Math.max(6, viewCards(this._config, currentViewKey(this._config)).length * 2);
   }
 
   getGridOptions() {
@@ -315,9 +408,12 @@ class EditableEnergyDashboard extends HTMLElement {
   }
 
   async _render() {
-    const cards = viewCards(this._config);
+    const viewKey = currentViewKey(this._config);
+    const options = tabConfig(this._config, viewKey);
+    const cards = viewCards(this._config, viewKey);
     const renderKey = JSON.stringify({
       config: this._config,
+      viewKey,
       cards,
     });
 
@@ -332,7 +428,7 @@ class EditableEnergyDashboard extends HTMLElement {
       <ha-card>
         <div class="dashboard">
           ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
-          <div id="grid" class="grid"></div>
+          <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
         </div>
       </ha-card>
     `;
@@ -343,9 +439,10 @@ class EditableEnergyDashboard extends HTMLElement {
       this._helpers = this._helpers || (await window.loadCardHelpers());
       const elements = await Promise.all(
         cards.map(async (card) => {
-          const cardConfig = dashboardCardConfig(card, this._config);
+          const cardConfig = dashboardCardConfig(card, this._config, viewKey);
           try {
             const element = await this._helpers.createCardElement(cardConfig);
+            applyCardLayout(element, cardLayoutFor(this._config, viewKey, card));
             if (this._hass) {
               element.hass = this._hass;
             }
@@ -366,11 +463,12 @@ class EditableEnergyDashboard extends HTMLElement {
   _viewTabs() {
     return `
       <div class="tabs">
-        ${Object.entries(DASHBOARD_VIEWS)
+        ${displayedViews(this._config)
+          .map((view) => [view, DASHBOARD_VIEWS[view] || { label: view }])
           .map(
             ([view, definition]) => `
               <button
-                class="${this._config.view === view ? "active" : ""}"
+                class="${currentViewKey(this._config) === view ? "active" : ""}"
                 data-view="${view}"
                 type="button"
               >${definition.label}</button>
@@ -402,12 +500,14 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = normalizeConfig({});
     this._rawDashboardConfig = "{}";
+    this._rawTabConfig = "{}";
     this._rawError = "";
   }
 
   setConfig(config) {
     this._config = normalizeConfig(config);
     this._rawDashboardConfig = JSON.stringify(this._config.card_options || {}, null, 2);
+    this._rawTabConfig = JSON.stringify(this._config.tab_options || {}, null, 2);
     this._rawError = "";
     this._render();
   }
@@ -424,16 +524,62 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     this._emit();
   }
 
-  _setHiddenCard(key, hidden) {
-    const hiddenCards = new Set(this._config.hidden_cards || []);
+  _setVisibleTab(viewKey, visible) {
+    const visibleTabs = new Set(this._config.visible_tabs || DEFAULT_VIEW_KEYS);
+    if (visible) {
+      visibleTabs.add(viewKey);
+    } else {
+      visibleTabs.delete(viewKey);
+    }
+    this._config = {
+      ...this._config,
+      visible_tabs: DEFAULT_VIEW_KEYS.filter((view) => visibleTabs.has(view)),
+    };
+
+    if (!this._config.visible_tabs.includes(this._config.view)) {
+      this._config.view = this._config.visible_tabs[0] || DEFAULT_CONFIG.view;
+    }
+
+    this._emit();
+  }
+
+  _setTabValue(viewKey, key, value) {
+    const tabOptions = clone(this._config.tab_options);
+    const tab = {
+      ...clone(tabOptions[viewKey]),
+      [key]: value,
+    };
+
+    Object.keys(tab).forEach((tabKey) => {
+      if (tab[tabKey] === "" || tab[tabKey] === undefined || tab[tabKey] === null) {
+        delete tab[tabKey];
+      }
+    });
+
+    tabOptions[viewKey] = tab;
+    this._config = {
+      ...this._config,
+      tab_options: tabOptions,
+    };
+    this._emit();
+  }
+
+  _setTabHiddenCard(viewKey, key, hidden) {
+    const tabOptions = clone(this._config.tab_options);
+    const tab = clone(tabOptions[viewKey]);
+    const hiddenCards = new Set(tab.hidden_cards || []);
+
     if (hidden) {
       hiddenCards.add(key);
     } else {
       hiddenCards.delete(key);
     }
+
+    tab.hidden_cards = [...hiddenCards];
+    tabOptions[viewKey] = tab;
     this._config = {
       ...this._config,
-      hidden_cards: [...hiddenCards],
+      tab_options: tabOptions,
     };
     this._emit();
   }
@@ -455,15 +601,19 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     this._render();
   }
 
-  _parseRaw(value) {
-    this._rawDashboardConfig = value;
+  _parseRaw(value, key) {
+    if (key === "tab_options") {
+      this._rawTabConfig = value;
+    } else {
+      this._rawDashboardConfig = value;
+    }
 
     try {
       const parsed = value.trim() ? JSON.parse(value) : {};
       this._rawError = "";
       this._config = {
         ...this._config,
-        card_options: parsed,
+        [key]: parsed,
       };
       this._emit();
     } catch (error) {
@@ -499,26 +649,6 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         Show link to Energy dashboard
       </label>
       ${dashboardControls}
-      <label>
-        Layout
-        <select data-key="layout">
-          <option value="auto" ${this._config.layout === "auto" ? "selected" : ""}>Auto</option>
-          <option value="horizontal" ${this._config.layout === "horizontal" ? "selected" : ""}>Horizontal</option>
-          <option value="vertical" ${this._config.layout === "vertical" ? "selected" : ""}>Vertical</option>
-        </select>
-      </label>
-      <label class="check">
-        <input type="checkbox" data-key="group_by_floor" ${
-          this._config.group_by_floor !== false ? "checked" : ""
-        }>
-        Group by floor
-      </label>
-      <label class="check">
-        <input type="checkbox" data-key="group_by_area" ${
-          this._config.group_by_area !== false ? "checked" : ""
-        }>
-        Group by area
-      </label>
       ${this._rawError ? `<div class="error">${escapeHtml(this._rawError)}</div>` : ""}
     `;
 
@@ -534,27 +664,64 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       });
     });
 
-    this.shadowRoot.querySelectorAll("input[type='checkbox'][data-card-key]").forEach((element) => {
+    this.shadowRoot.querySelectorAll("input[type='checkbox'][data-tab-visible]").forEach((element) => {
       element.addEventListener("change", (event) => {
-        this._setHiddenCard(event.target.dataset.cardKey, !event.target.checked);
+        this._setVisibleTab(event.target.dataset.tabVisible, event.target.checked);
+      });
+    });
+
+    this.shadowRoot.querySelectorAll("[data-tab-key]").forEach((element) => {
+      element.addEventListener("change", (event) => {
+        const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+        this._setTabValue(event.target.dataset.view, event.target.dataset.tabKey, value);
+      });
+    });
+
+    this.shadowRoot.querySelectorAll("input[type='checkbox'][data-tab-card-key]").forEach((element) => {
+      element.addEventListener("change", (event) => {
+        this._setTabHiddenCard(
+          event.target.dataset.view,
+          event.target.dataset.tabCardKey,
+          !event.target.checked
+        );
       });
     });
 
     this.shadowRoot.querySelectorAll("textarea").forEach((element) => {
       element.addEventListener("change", (event) => {
-        this._parseRaw(event.target.value);
+        this._parseRaw(event.target.value, event.target.dataset.key);
       });
     });
   }
 
   _dashboardControls(viewOptions) {
-    const cards = DASHBOARD_VIEWS[this._config.view]?.cards || DASHBOARD_VIEWS.electricity.cards;
-    const hiddenCards = new Set(this._config.hidden_cards || []);
+    const viewKey = this._config.view || DEFAULT_CONFIG.view;
+    const cards = DASHBOARD_VIEWS[viewKey]?.cards || DASHBOARD_VIEWS.electricity.cards;
+    const visibleTabs = new Set(this._config.visible_tabs || DEFAULT_VIEW_KEYS);
+    const options = tabConfig(this._config, viewKey);
+    const rawTab = clone(this._config.tab_options?.[viewKey]);
+    const hiddenCards = new Set([
+      ...hiddenCardsFor(this._config.hidden_cards, viewKey),
+      ...hiddenCardsFor(this._config.tab_options?.[viewKey]?.hidden_cards, viewKey),
+    ]);
     const allCards = unique(cards.map((card) => card.key));
 
     return `
+      <fieldset>
+        <legend>Tabs shown</legend>
+        ${DEFAULT_VIEW_KEYS.map(
+          (view) => `
+            <label class="check">
+              <input type="checkbox" data-tab-visible="${view}" ${
+                visibleTabs.has(view) ? "checked" : ""
+              }>
+              ${escapeHtml(DASHBOARD_VIEWS[view].label)}
+            </label>
+          `
+        ).join("")}
+      </fieldset>
       <label>
-        Dashboard view
+        Tab to edit
         <select data-key="view">${viewOptions}</select>
       </label>
       <label class="check">
@@ -570,6 +737,51 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         Show date selection card
       </label>
       <fieldset>
+        <legend>Layout for ${escapeHtml(DASHBOARD_VIEWS[viewKey]?.label || viewKey)}</legend>
+        <label>
+          Columns
+          <select data-view="${viewKey}" data-tab-key="columns">
+            <option value="auto" ${String(options.columns || "auto") === "auto" ? "selected" : ""}>Auto</option>
+            <option value="1" ${String(options.columns) === "1" ? "selected" : ""}>1</option>
+            <option value="2" ${String(options.columns) === "2" ? "selected" : ""}>2</option>
+            <option value="3" ${String(options.columns) === "3" ? "selected" : ""}>3</option>
+            <option value="4" ${String(options.columns) === "4" ? "selected" : ""}>4</option>
+          </select>
+        </label>
+        <label>
+          Minimum card width
+          <input data-view="${viewKey}" data-tab-key="min_card_width" type="number" min="160" max="600" value="${
+            escapeAttr(rawTab.min_card_width || "")
+          }" placeholder="280">
+        </label>
+        <label>
+          Card gap
+          <input data-view="${viewKey}" data-tab-key="gap" type="number" min="0" max="48" value="${
+            escapeAttr(rawTab.gap || "")
+          }" placeholder="12">
+        </label>
+        <label>
+          Sankey layout
+          <select data-view="${viewKey}" data-tab-key="layout">
+            <option value="auto" ${options.layout === "auto" ? "selected" : ""}>Auto</option>
+            <option value="horizontal" ${options.layout === "horizontal" ? "selected" : ""}>Horizontal</option>
+            <option value="vertical" ${options.layout === "vertical" ? "selected" : ""}>Vertical</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" data-view="${viewKey}" data-tab-key="group_by_floor" ${
+            options.group_by_floor !== false ? "checked" : ""
+          }>
+          Group Sankey cards by floor
+        </label>
+        <label class="check">
+          <input type="checkbox" data-view="${viewKey}" data-tab-key="group_by_area" ${
+            options.group_by_area !== false ? "checked" : ""
+          }>
+          Group Sankey cards by area
+        </label>
+      </fieldset>
+      <fieldset>
         <legend>Cards in this view</legend>
         ${allCards
           .map((key) => {
@@ -577,7 +789,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
             const label = card.title || CARD_TYPES[card.type]?.label || card.type;
             return `
               <label class="check">
-                <input type="checkbox" data-card-key="${key}" ${
+                <input type="checkbox" data-view="${viewKey}" data-tab-card-key="${key}" ${
                   hiddenCards.has(key) || hiddenCards.has(card.type) ? "" : "checked"
                 }>
                 ${escapeHtml(label)}
@@ -589,6 +801,10 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       <label>
         Per-card override JSON
         <textarea data-key="card_options">${escapeHtml(this._rawDashboardConfig)}</textarea>
+      </label>
+      <label>
+        Tab options JSON
+        <textarea data-key="tab_options">${escapeHtml(this._rawTabConfig)}</textarea>
       </label>
     `;
   }
@@ -607,9 +823,28 @@ const baseStyles = () => `
     }
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(var(--energy-dashboard-min-card-width, 280px), 1fr));
+      gap: var(--energy-dashboard-gap, 12px);
       align-items: start;
+    }
+    .grid.columns-1 {
+      grid-template-columns: 1fr;
+    }
+    .grid.columns-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .grid.columns-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .grid.columns-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    @media (max-width: 640px) {
+      .grid.columns-2,
+      .grid.columns-3,
+      .grid.columns-4 {
+        grid-template-columns: 1fr;
+      }
     }
     .tabs {
       display: flex;

@@ -70,6 +70,10 @@ type: custom:editable-energy-dashboard
 view: electricity
 show_view_tabs: true
 show_date_selection: true
+visible_tabs:
+  - electricity
+  - gas
+  - water
 ```
 
 You can switch between the included Energy dashboard views from the card editor
@@ -87,16 +91,59 @@ or by using the tabs on the card.
 
 - Dashboard view
 - Show or hide the view tabs
+- Show or hide individual tabs
 - Show or hide the date selection card
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
-- Sankey layout
-- Group Sankey cards by floor
-- Group Sankey cards by area
-- Show or hide individual cards in the selected view
+- Per-tab column layout
+- Per-tab card width and gap
+- Per-tab Sankey layout
+- Per-tab Sankey grouping by floor or area
+- Show or hide individual cards in each tab
 - Per-card override JSON
+- Per-tab override JSON
 
-## Per-Card Overrides
+## Tab And Layout Options
+
+Use `visible_tabs` to choose which tabs are shown. Use `tab_options` to control
+the cards and layout for each tab.
+
+```yaml
+type: custom:editable-energy-dashboard
+view: electricity
+visible_tabs:
+  - electricity
+  - gas
+  - now
+tab_options:
+  electricity:
+    columns: 3
+    gap: 12
+    min_card_width: 260
+    hidden_cards:
+      - carbon
+      - grid_balance
+    card_layout:
+      usage: full
+      solar: full
+  gas:
+    columns: 1
+    hidden_cards:
+      - sources
+  now:
+    columns: 2
+```
+
+Supported layout values:
+
+- `columns`: `auto`, `1`, `2`, `3`, or `4`
+- `min_card_width`: minimum card width in pixels for `auto` layout
+- `gap`: spacing between cards in pixels
+- `hidden_cards`: card keys or built-in card types to hide in that tab
+- `card_order`: optional list of card keys or card types to sort first
+- `card_layout`: set a card key or type to `full` or a column span number
+
+## Card Overrides
 
 Use `card_options` to pass raw config to a built-in Energy card. Keys can be
 the card key used by this wrapper, or the built-in card type.
@@ -104,13 +151,16 @@ the card key used by this wrapper, or the built-in card type.
 ```yaml
 type: custom:editable-energy-dashboard
 view: electricity
-hidden_cards:
-  - carbon
 card_options:
   energy-sources-table:
     show_only_totals: false
-  sankey:
-    layout: horizontal
+tab_options:
+  electricity:
+    hidden_cards:
+      - carbon
+    card_options:
+      sankey:
+        layout: horizontal
 ```
 
 ## Notes
