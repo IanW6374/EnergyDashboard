@@ -396,14 +396,22 @@ class EditableEnergyDashboard extends HTMLElement {
   }
 
   getCardSize() {
-    return Math.max(6, viewCards(this._config, currentViewKey(this._config)).length * 2);
+    return Math.max(12, viewCards(this._config, currentViewKey(this._config)).length * 2);
   }
 
   getGridOptions() {
     return {
       columns: 12,
-      min_columns: 6,
+      min_columns: 12,
       rows: this.getCardSize(),
+    };
+  }
+
+  getLayoutOptions() {
+    return {
+      grid_columns: 12,
+      grid_min_columns: 12,
+      grid_rows: this.getCardSize(),
     };
   }
 
@@ -846,8 +854,13 @@ const baseStyles = () => `
   <style>
     :host {
       display: block;
+      width: 100%;
+      max-width: none;
     }
     ha-card {
+      display: block;
+      width: 100%;
+      max-width: none;
       overflow: hidden;
     }
     .dashboard {

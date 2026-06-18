@@ -63,7 +63,7 @@ Restart Home Assistant or reload Lovelace resources after editing
 
 ## Add The Full Dashboard Card
 
-Add this card YAML to a dashboard:
+Add this card YAML as a **card** in a dashboard view:
 
 ```yaml
 type: custom:editable-energy-dashboard
@@ -76,12 +76,56 @@ visible_tabs:
   - water
 ```
 
+If you are editing a full dashboard YAML file, the custom dashboard must be
+nested under `cards:` inside a Lovelace view:
+
+```yaml
+views:
+  - title: Energy
+    path: energy
+    type: panel
+    cards:
+      - type: custom:editable-energy-dashboard
+        view: electricity
+        show_view_tabs: true
+        visible_tabs:
+          - electricity
+          - gas
+          - now
+        tab_options:
+          electricity:
+            columns: 3
+            gap: 12
+            min_card_width: 260
+            hidden_cards:
+              - carbon
+              - grid_balance
+            card_layout:
+              usage: full
+              solar: full
+          gas:
+            columns: 1
+            hidden_cards:
+              - sources
+          now:
+            columns: 2
+```
+
+Do not put `type: custom:editable-energy-dashboard` directly under `views:`.
+Home Assistant will treat that as a view definition instead of a card.
+
+Use `type: panel` on the Lovelace view if you want this dashboard card to take
+the full available page width.
+
 You can switch between the included Energy dashboard views from the card editor
 or by using the tabs on the card.
 
 In the visual editor, use **Tab to edit** to choose which tab's cards and layout
 you are changing. This is separate from **Initial tab shown**, which only
 controls the tab that opens first on the dashboard.
+
+If your dashboard is YAML-mode, Home Assistant does not show the normal visual
+card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 
 ## Included Dashboard Views
 
