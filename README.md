@@ -7,28 +7,75 @@ It renders the selected built-in card through Home Assistant's own card factory,
 so the display stays as close as possible to the native card. The custom part is
 the wrapper configuration and editor.
 
-## Install
+## Files To Add
 
-Copy `editable-energy-card.js` into your Home Assistant config directory:
+Create this file in your Home Assistant config directory:
 
 ```text
-<config>/www/editable-energy-card.js
+/config/www/editable-energy-card.js
 ```
 
-Add it as a dashboard resource:
+Copy the contents of this repository's `editable-energy-card.js` into that
+file.
+
+Home Assistant serves files in `/config/www/` from the `/local/` URL path, so
+the browser resource URL is:
+
+```text
+/local/editable-energy-card.js
+```
+
+## Add Dashboard Resource
+
+### UI-Managed Dashboards
+
+Use this if you edit dashboards from the Home Assistant UI.
+
+1. Go to **Settings**.
+2. Open **Dashboards**.
+3. Open the three-dot menu.
+4. Select **Resources**.
+5. Select **Add Resource**.
+6. Enter:
+
+```text
+URL: /local/editable-energy-card.js
+Resource type: JavaScript module
+```
+
+### YAML-Mode Dashboards
+
+Use this if your dashboards are managed through YAML.
+
+Add this under the top-level `lovelace:` header in `/config/configuration.yaml`:
 
 ```yaml
-url: /local/editable-energy-card.js
-type: module
+lovelace:
+  resources:
+    - url: /local/editable-energy-card.js
+      type: module
 ```
 
-Then add a card:
+Restart Home Assistant or reload Lovelace resources after editing
+`configuration.yaml`.
+
+## Add The Card
+
+Add this card YAML to a dashboard:
 
 ```yaml
 type: custom:editable-energy-card
 card_type: energy-distribution
 link_dashboard: true
 ```
+
+The required custom card header is:
+
+```yaml
+type: custom:editable-energy-card
+```
+
+Everything below that header configures which built-in Energy card is wrapped.
 
 ## Supported Built-In Cards
 
