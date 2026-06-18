@@ -79,6 +79,10 @@ visible_tabs:
 You can switch between the included Energy dashboard views from the card editor
 or by using the tabs on the card.
 
+In the visual editor, use **Tab to edit** to choose which tab's cards and layout
+you are changing. This is separate from **Initial tab shown**, which only
+controls the tab that opens first on the dashboard.
+
 ## Included Dashboard Views
 
 - `overview`
@@ -90,6 +94,7 @@ or by using the tabs on the card.
 ## Dashboard Options
 
 - Dashboard view
+- Separate editor tab selection
 - Show or hide the view tabs
 - Show or hide individual tabs
 - Show or hide the date selection card

@@ -499,6 +499,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._config = normalizeConfig({});
+    this._editTab = undefined;
     this._rawDashboardConfig = "{}";
     this._rawTabConfig = "{}";
     this._rawError = "";
@@ -506,6 +507,9 @@ class EditableEnergyDashboardEditor extends HTMLElement {
 
   setConfig(config) {
     this._config = normalizeConfig(config);
+    if (!DEFAULT_VIEW_KEYS.includes(this._editTab)) {
+      this._editTab = currentViewKey(this._config);
+    }
     this._rawDashboardConfig = JSON.stringify(this._config.card_options || {}, null, 2);
     this._rawTabConfig = JSON.stringify(this._config.tab_options || {}, null, 2);
     this._rawError = "";
@@ -522,6 +526,13 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       [key]: value,
     };
     this._emit();
+  }
+
+  _setEditorValue(key, value) {
+    if (key === "edit_tab") {
+      this._editTab = value;
+      this._render();
+    }
   }
 
   _setVisibleTab(viewKey, visible) {
@@ -652,9 +663,15 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       ${this._rawError ? `<div class="error">${escapeHtml(this._rawError)}</div>` : ""}
     `;
 
-    this.shadowRoot.querySelectorAll("select, input[type='text']").forEach((element) => {
+    this.shadowRoot.querySelectorAll("select[data-key], input[type='text'][data-key]").forEach((element) => {
       element.addEventListener("change", (event) => {
         this._setValue(event.target.dataset.key, event.target.value);
+      });
+    });
+
+    this.shadowRoot.querySelectorAll("[data-editor-key]").forEach((element) => {
+      element.addEventListener("change", (event) => {
+        this._setEditorValue(event.target.dataset.editorKey, event.target.value);
       });
     });
 
@@ -695,7 +712,9 @@ class EditableEnergyDashboardEditor extends HTMLElement {
   }
 
   _dashboardControls(viewOptions) {
-    const viewKey = this._config.view || DEFAULT_CONFIG.view;
+    const viewKey = DEFAULT_VIEW_KEYS.includes(this._editTab)
+      ? this._editTab
+      : currentViewKey(this._config);
     const cards = DASHBOARD_VIEWS[viewKey]?.cards || DASHBOARD_VIEWS.electricity.cards;
     const visibleTabs = new Set(this._config.visible_tabs || DEFAULT_VIEW_KEYS);
     const options = tabConfig(this._config, viewKey);
@@ -722,6 +741,19 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       </fieldset>
       <label>
         Tab to edit
+        <select data-editor-key="edit_tab">
+          ${Object.entries(DASHBOARD_VIEWS)
+            .map(
+              ([view, definition]) =>
+                `<option value="${view}" ${
+                  viewKey === view ? "selected" : ""
+                }>${definition.label}</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+      <label>
+        Initial tab shown
         <select data-key="view">${viewOptions}</select>
       </label>
       <label class="check">
@@ -731,10 +763,10 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         Show view tabs
       </label>
       <label class="check">
-        <input type="checkbox" data-key="show_date_selection" ${
-          this._config.show_date_selection !== false ? "checked" : ""
+        <input type="checkbox" data-view="${viewKey}" data-tab-key="show_date_selection" ${
+          options.show_date_selection !== false ? "checked" : ""
         }>
-        Show date selection card
+        Show date selection card in this tab
       </label>
       <fieldset>
         <legend>Layout for ${escapeHtml(DASHBOARD_VIEWS[viewKey]?.label || viewKey)}</legend>
