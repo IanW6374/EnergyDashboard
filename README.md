@@ -117,16 +117,17 @@ Home Assistant will treat that as a view definition instead of a card.
 Use `type: panel` on the Lovelace view if you want this dashboard card to take
 the full available page width.
 
-You can switch between the included Energy dashboard views from the card editor
-or by using the tabs on the card.
+You can switch between the included Energy tabs from the card editor or by
+using the tabs on the card.
 
-In the visual editor, use **Tab to edit** to choose which tab's cards and layout
-you are changing. This is separate from **Initial tab shown**, which only
-controls the tab that opens first on the dashboard.
+In the visual editor, use **Energy tab to edit** to choose which internal Energy
+tab's cards and layout you are changing. This is separate from **Initial Energy
+tab shown**, which only controls the tab that opens first inside the custom
+card.
 
-Use **Dashboard views shown** in the editor to choose which dashboard views are
-visible. In the selected tab's card list, use each card's width selector to set
-that card to automatic width, full width, or a 2/3/4-column span.
+Use **Energy tabs shown** in the editor to choose which internal Energy tabs are
+visible. In the selected Energy tab's card list, use each card's width selector
+to set that card to automatic width, full width, or a 2/3/4-column span.
 
 If your dashboard is YAML-mode, Home Assistant does not show the normal visual
 card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
@@ -141,10 +142,10 @@ card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 
 ## Dashboard Options
 
-- Dashboard view
-- Separate editor tab selection
+- Home Assistant dashboard view setup
+- Separate Energy tab selection
 - Show or hide the view tabs
-- Show or hide individual dashboard views
+- Show or hide individual Energy tabs
 - Show or hide the date selection card
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
@@ -152,15 +153,15 @@ card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 - Per-tab card width and gap
 - Per-tab Sankey layout
 - Per-tab Sankey grouping by floor or area
-- Show or hide individual cards in each tab
-- Set each card to auto, full width, or a column span inside a tab
+- Show or hide individual cards in each Energy tab
+- Set each card to auto, full width, or a column span inside an Energy tab
 - Per-card override JSON
 - Per-tab override JSON
 
 ## Tab And Layout Options
 
-Use `visible_tabs` to choose which tabs are shown. Use `tab_options` to control
-the cards and layout for each tab.
+Use `visible_tabs` to choose which internal Energy tabs are shown. Use
+`tab_options` to control the cards and layout for each Energy tab.
 
 ```yaml
 type: custom:editable-energy-dashboard

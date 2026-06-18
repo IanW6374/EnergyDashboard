@@ -771,7 +771,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
 
     return `
       <fieldset>
-        <legend>Dashboard views shown</legend>
+        <legend>Energy tabs shown</legend>
         ${DEFAULT_VIEW_KEYS.map(
           (view) => `
             <label class="check">
@@ -784,7 +784,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         ).join("")}
       </fieldset>
       <label>
-        Tab to edit
+        Energy tab to edit
         <select data-editor-key="edit_tab">
           ${Object.entries(DASHBOARD_VIEWS)
             .map(
@@ -797,7 +797,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         </select>
       </label>
       <label>
-        Initial tab shown
+        Initial Energy tab shown
         <select data-key="view">${viewOptions}</select>
       </label>
       <label class="check">
@@ -810,7 +810,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         <input type="checkbox" data-view="${viewKey}" data-tab-key="show_date_selection" ${
           options.show_date_selection !== false ? "checked" : ""
         }>
-        Show date selection card in this tab
+        Show date selection card in this Energy tab
       </label>
       <fieldset>
         <legend>Layout for ${escapeHtml(DASHBOARD_VIEWS[viewKey]?.label || viewKey)}</legend>
@@ -858,7 +858,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         </label>
       </fieldset>
       <fieldset>
-        <legend>Cards and card layout in this view</legend>
+        <legend>Cards and card layout in this Energy tab</legend>
         ${allCards
           .map((key) => {
             const card = cards.find((candidate) => candidate.key === key);
