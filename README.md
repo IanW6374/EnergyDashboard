@@ -1,28 +1,30 @@
-# Editable Energy Card
+# Editable Energy Dashboard
 
-Editable Energy Card is a small Home Assistant custom Lovelace card that wraps
-Home Assistant's built-in energy cards and adds a card editor.
+Editable Energy Dashboard is a Home Assistant custom Lovelace card that builds
+a customisable version of Home Assistant's built-in Energy dashboard from the
+native Energy cards.
 
-It renders the selected built-in card through Home Assistant's own card factory,
-so the display stays as close as possible to the native card. The custom part is
-the wrapper configuration and editor.
+It still delegates rendering to Home Assistant's own card factory, so the
+graphs, gauges, Sankey cards, tables, and date selector stay close to the
+native Energy dashboard. The custom part is the wrapper, view layout, and card
+editor.
 
 ## Files To Add
 
 Create this file in your Home Assistant config directory:
 
 ```text
-/config/www/editable-energy-card.js
+/config/www/custom-energy-dashboard.js
 ```
 
-Copy the contents of this repository's `editable-energy-card.js` into that
+Copy the contents of this repository's `custom-energy-dashboard.js` into that
 file.
 
 Home Assistant serves files in `/config/www/` from the `/local/` URL path, so
 the browser resource URL is:
 
 ```text
-/local/editable-energy-card.js
+/local/custom-energy-dashboard.js
 ```
 
 ## Add Dashboard Resource
@@ -39,7 +41,7 @@ Use this if you edit dashboards from the Home Assistant UI.
 6. Enter:
 
 ```text
-URL: /local/editable-energy-card.js
+URL: /local/custom-energy-dashboard.js
 Resource type: JavaScript module
 ```
 
@@ -52,95 +54,72 @@ Add this under the top-level `lovelace:` header in `/config/configuration.yaml`:
 ```yaml
 lovelace:
   resources:
-    - url: /local/editable-energy-card.js
+    - url: /local/custom-energy-dashboard.js
       type: module
 ```
 
 Restart Home Assistant or reload Lovelace resources after editing
 `configuration.yaml`.
 
-## Add The Card
+## Add The Full Dashboard Card
 
 Add this card YAML to a dashboard:
 
 ```yaml
-type: custom:editable-energy-card
-card_type: energy-distribution
-link_dashboard: true
+type: custom:editable-energy-dashboard
+view: electricity
+show_view_tabs: true
+show_date_selection: true
 ```
 
-The required custom card header is:
+You can switch between the included Energy dashboard views from the card editor
+or by using the tabs on the card.
 
-```yaml
-type: custom:editable-energy-card
-```
+## Included Dashboard Views
 
-Everything below that header configures which built-in Energy card is wrapped.
+- `overview`
+- `electricity`
+- `gas`
+- `water`
+- `now`
 
-## Supported Built-In Cards
+## Dashboard Options
 
-- `energy-distribution`
-- `energy-sankey`
-- `power-sankey`
-- `energy-usage-graph`
-- `energy-solar-graph`
-- `energy-grid-neutrality-gauge`
-- `energy-self-sufficiency-gauge`
-- `energy-solar-consumed-gauge`
-
-## Editable Options
-
-- Built-in energy card type
+- Dashboard view
+- Show or hide the view tabs
+- Show or hide the date selection card
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
-- Layout, for `energy-sankey`
-- Group by floor, for `energy-sankey`
-- Group by area, for `energy-sankey`
-- Extra raw built-in card JSON
+- Sankey layout
+- Group Sankey cards by floor
+- Group Sankey cards by area
+- Show or hide individual cards in the selected view
+- Per-card override JSON
 
-## Examples
+## Per-Card Overrides
 
-Native energy distribution card with an editor:
-
-```yaml
-type: custom:editable-energy-card
-card_type: energy-distribution
-link_dashboard: true
-```
-
-Energy Sankey card:
+Use `card_options` to pass raw config to a built-in Energy card. Keys can be
+the card key used by this wrapper, or the built-in card type.
 
 ```yaml
-type: custom:editable-energy-card
-card_type: energy-sankey
-layout: auto
-group_by_floor: true
-group_by_area: true
-```
-
-Power Sankey card:
-
-```yaml
-type: custom:editable-energy-card
-card_type: power-sankey
-```
-
-Pass through extra built-in card config:
-
-```yaml
-type: custom:editable-energy-card
-card_type: energy-distribution
-inner_config:
-  collection_key: my_energy_collection
+type: custom:editable-energy-dashboard
+view: electricity
+hidden_cards:
+  - carbon
+card_options:
+  energy-sources-table:
+    show_only_totals: false
+  sankey:
+    layout: horizontal
 ```
 
 ## Notes
 
-This card intentionally delegates rendering to Home Assistant's built-in energy
+This card intentionally delegates rendering to Home Assistant's built-in Energy
 cards instead of copying their source. That keeps the UI close to Home
 Assistant's native behavior, but these internal card types can change between
 Home Assistant releases.
 
-The built-in energy cards still use Home Assistant's Energy dashboard
+The built-in Energy cards still use Home Assistant's Energy dashboard
 configuration and long-term statistics. This wrapper does not replace the Energy
 dashboard setup.
