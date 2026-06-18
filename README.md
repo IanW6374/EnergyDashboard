@@ -124,6 +124,10 @@ In the visual editor, use **Tab to edit** to choose which tab's cards and layout
 you are changing. This is separate from **Initial tab shown**, which only
 controls the tab that opens first on the dashboard.
 
+Use **Dashboard views shown** in the editor to choose which dashboard views are
+visible. In the selected tab's card list, use each card's width selector to set
+that card to automatic width, full width, or a 2/3/4-column span.
+
 If your dashboard is YAML-mode, Home Assistant does not show the normal visual
 card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 
@@ -140,7 +144,7 @@ card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 - Dashboard view
 - Separate editor tab selection
 - Show or hide the view tabs
-- Show or hide individual tabs
+- Show or hide individual dashboard views
 - Show or hide the date selection card
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
@@ -149,6 +153,7 @@ card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
 - Per-tab Sankey layout
 - Per-tab Sankey grouping by floor or area
 - Show or hide individual cards in each tab
+- Set each card to auto, full width, or a column span inside a tab
 - Per-card override JSON
 - Per-tab override JSON
 
@@ -191,6 +196,19 @@ Supported layout values:
 - `hidden_cards`: card keys or built-in card types to hide in that tab
 - `card_order`: optional list of card keys or card types to sort first
 - `card_layout`: set a card key or type to `full` or a column span number
+
+Card layout examples:
+
+```yaml
+tab_options:
+  electricity:
+    columns: 3
+    card_layout:
+      distribution: full
+      usage: full
+      solar: full
+      sources: 2
+```
 
 ## Card Overrides
 

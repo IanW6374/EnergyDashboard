@@ -603,6 +603,31 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     this._emit();
   }
 
+  _setTabCardLayout(viewKey, key, value) {
+    const tabOptions = clone(this._config.tab_options);
+    const tab = clone(tabOptions[viewKey]);
+    const cardLayout = clone(tab.card_layout);
+
+    if (!value || value === "auto") {
+      delete cardLayout[key];
+    } else {
+      cardLayout[key] = value;
+    }
+
+    if (Object.keys(cardLayout).length) {
+      tab.card_layout = cardLayout;
+    } else {
+      delete tab.card_layout;
+    }
+
+    tabOptions[viewKey] = tab;
+    this._config = {
+      ...this._config,
+      tab_options: tabOptions,
+    };
+    this._emit();
+  }
+
   _emit() {
     const config = clone(this._config);
     config.type = "custom:editable-energy-dashboard";
@@ -712,6 +737,16 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       });
     });
 
+    this.shadowRoot.querySelectorAll("[data-tab-card-layout-key]").forEach((element) => {
+      element.addEventListener("change", (event) => {
+        this._setTabCardLayout(
+          event.target.dataset.view,
+          event.target.dataset.tabCardLayoutKey,
+          event.target.value
+        );
+      });
+    });
+
     this.shadowRoot.querySelectorAll("textarea").forEach((element) => {
       element.addEventListener("change", (event) => {
         this._parseRaw(event.target.value, event.target.dataset.key);
@@ -727,6 +762,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     const visibleTabs = new Set(this._config.visible_tabs || DEFAULT_VIEW_KEYS);
     const options = tabConfig(this._config, viewKey);
     const rawTab = clone(this._config.tab_options?.[viewKey]);
+    const cardLayout = clone(rawTab.card_layout);
     const hiddenCards = new Set([
       ...hiddenCardsFor(this._config.hidden_cards, viewKey),
       ...hiddenCardsFor(this._config.tab_options?.[viewKey]?.hidden_cards, viewKey),
@@ -735,7 +771,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
 
     return `
       <fieldset>
-        <legend>Tabs shown</legend>
+        <legend>Dashboard views shown</legend>
         ${DEFAULT_VIEW_KEYS.map(
           (view) => `
             <label class="check">
@@ -822,18 +858,28 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         </label>
       </fieldset>
       <fieldset>
-        <legend>Cards in this view</legend>
+        <legend>Cards and card layout in this view</legend>
         ${allCards
           .map((key) => {
             const card = cards.find((candidate) => candidate.key === key);
             const label = card.title || CARD_TYPES[card.type]?.label || card.type;
+            const layout = String(cardLayout[key] || cardLayout[card.type] || "auto");
             return `
-              <label class="check">
-                <input type="checkbox" data-view="${viewKey}" data-tab-card-key="${key}" ${
-                  hiddenCards.has(key) || hiddenCards.has(card.type) ? "" : "checked"
-                }>
-                ${escapeHtml(label)}
-              </label>
+              <div class="card-row">
+                <label class="check">
+                  <input type="checkbox" data-view="${viewKey}" data-tab-card-key="${key}" ${
+                    hiddenCards.has(key) || hiddenCards.has(card.type) ? "" : "checked"
+                  }>
+                  <span>${escapeHtml(label)}</span>
+                </label>
+                <select data-view="${viewKey}" data-tab-card-layout-key="${key}" title="Card width">
+                  <option value="auto" ${layout === "auto" ? "selected" : ""}>Auto</option>
+                  <option value="full" ${layout === "full" ? "selected" : ""}>Full width</option>
+                  <option value="2" ${layout === "2" ? "selected" : ""}>Span 2</option>
+                  <option value="3" ${layout === "3" ? "selected" : ""}>Span 3</option>
+                  <option value="4" ${layout === "4" ? "selected" : ""}>Span 4</option>
+                </select>
+              </div>
             `;
           })
           .join("")}
@@ -963,6 +1009,27 @@ const editorStyles = () => `
     .check input {
       width: auto;
       margin: 0;
+    }
+    .card-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 132px;
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 12px;
+    }
+    .card-row label {
+      margin: 0;
+    }
+    .card-row select {
+      margin: 0;
+    }
+    .card-row span {
+      min-width: 0;
+    }
+    @media (max-width: 420px) {
+      .card-row {
+        grid-template-columns: 1fr;
+      }
     }
     .error {
       color: var(--error-color);
