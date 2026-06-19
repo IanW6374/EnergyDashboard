@@ -424,6 +424,27 @@ const gridStyle = (options) => {
   return `--energy-dashboard-gap: ${gap}px; --energy-dashboard-min-card-width: ${minWidth}px;`;
 };
 
+const cssLength = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return /^\d+(\.\d+)?$/.test(String(value)) ? `${value}px` : String(value);
+};
+
+const tabsStyle = (config) => {
+  const values = {
+    "--energy-dashboard-tabs-top": cssLength(config.tabs_top),
+    "--energy-dashboard-tabs-left": cssLength(config.tabs_left),
+    "--energy-dashboard-tabs-mobile-left": cssLength(config.tabs_mobile_left),
+    "--energy-dashboard-tabs-right": cssLength(config.tabs_right),
+    "--energy-dashboard-tabs-height": cssLength(config.tabs_height),
+  };
+  return Object.entries(values)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("; ");
+};
+
 const gridClass = (options) => {
   const columns = String(options.columns || "auto");
   return ["1", "2", "3", "4", "5", "6"].includes(columns) ? `grid columns-${columns}` : "grid";
@@ -680,9 +701,10 @@ class EditableEnergyDashboard extends HTMLElement {
   _viewTabs() {
     const positionClass =
       this._config.tabs_position === "card" ? "card-tabs" : "top-tabs";
+    const style = tabsStyle(this._config);
 
     return `
-      <div class="tabs ${positionClass}">
+      <div class="tabs ${positionClass}"${style ? ` style="${escapeAttr(style)}"` : ""}>
         ${displayedViews(this._config)
           .map((view) => [view, DASHBOARD_VIEWS[view] || { label: view }])
           .map(
@@ -1113,6 +1135,34 @@ class EditableEnergyDashboardEditor extends HTMLElement {
           }>Card pill tabs</option>
         </select>
       </label>
+      <div class="row">
+        <label>
+          Tabs left
+          <input data-key="tabs_left" type="text" value="${
+            escapeAttr(this._config.tabs_left || "")
+          }" placeholder="256px">
+        </label>
+        <label>
+          Tabs right
+          <input data-key="tabs_right" type="text" value="${
+            escapeAttr(this._config.tabs_right || "")
+          }" placeholder="176px">
+        </label>
+      </div>
+      <div class="row">
+        <label>
+          Tabs top
+          <input data-key="tabs_top" type="text" value="${
+            escapeAttr(this._config.tabs_top || "")
+          }" placeholder="0px">
+        </label>
+        <label>
+          Tabs height
+          <input data-key="tabs_height" type="text" value="${
+            escapeAttr(this._config.tabs_height || "")
+          }" placeholder="48px">
+        </label>
+      </div>
       <label class="check">
         <input type="checkbox" data-view="${viewKey}" data-tab-key="show_date_selection" ${
           options.show_date_selection !== false ? "checked" : ""
@@ -1507,6 +1557,16 @@ const editorStyles = () => `
     .check input {
       width: auto;
       margin: 0;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    @media (max-width: 520px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
     }
     .card-row {
       display: grid;

@@ -70,6 +70,7 @@ type: custom:editable-energy-dashboard
 view: electricity
 show_view_tabs: true
 tabs_position: top
+tabs_right: 220
 show_date_selection: true
 visible_tabs:
   - electricity
@@ -90,6 +91,7 @@ views:
         view: electricity
         show_view_tabs: true
         tabs_position: top
+        tabs_right: 220
         visible_tabs:
           - electricity
           - gas
@@ -127,17 +129,18 @@ cannot inject its tabs into Home Assistant's own app header, but
 of the browser window. Use `tabs_position: card` if you prefer the older pill
 buttons.
 
-The top tab strip can be tuned with CSS variables if your Home Assistant theme
-or sidebar width needs a different offset. On desktop, the default left offset
-is Home Assistant's drawer width, falling back to `256px`. On narrower screens,
-the default mobile left offset is `0px`. The default right offset is `176px` so
-the tab strip does not cover Home Assistant's toolbar action icons.
+The top tab strip can be tuned with YAML if your Home Assistant theme, sidebar,
+or toolbar width needs a different offset. Numeric values are treated as pixels.
+On desktop, the default left offset is Home Assistant's drawer width, falling
+back to `256px`. On narrower screens, the default mobile left offset is `0px`.
+The default right offset is `176px` so the tab strip does not cover Home
+Assistant's toolbar action icons.
 
-- `--energy-dashboard-tabs-top`: distance from the top of the browser window
-- `--energy-dashboard-tabs-left`: distance from the left edge, useful with a sidebar
-- `--energy-dashboard-tabs-mobile-left`: distance from the left edge on narrower screens
-- `--energy-dashboard-tabs-right`: distance from the right edge
-- `--energy-dashboard-tabs-height`: reserved height for the tab strip
+- `tabs_top`: distance from the top of the browser window
+- `tabs_left`: distance from the left edge, useful with a sidebar
+- `tabs_mobile_left`: distance from the left edge on narrower screens
+- `tabs_right`: distance from the right edge
+- `tabs_height`: reserved height for the tab strip
 
 You can switch between the included Energy tabs from the card editor or by
 using the tabs on the card.
