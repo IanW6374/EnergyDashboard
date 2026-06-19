@@ -69,6 +69,7 @@ Add this card YAML as a **card** in a dashboard view:
 type: custom:editable-energy-dashboard
 view: electricity
 show_view_tabs: true
+tabs_position: top
 show_date_selection: true
 visible_tabs:
   - electricity
@@ -88,6 +89,7 @@ views:
       - type: custom:editable-energy-dashboard
         view: electricity
         show_view_tabs: true
+        tabs_position: top
         visible_tabs:
           - electricity
           - gas
@@ -119,7 +121,10 @@ the full available page width.
 
 The page title at the very top, such as `Energy`, is the Home Assistant
 Lovelace view title from `views[].title`, not part of this custom card. Rename
-or blank that Lovelace view title if you do not want it shown.
+or blank that Lovelace view title if you do not want it shown. A Lovelace card
+cannot inject its tabs into Home Assistant's own app header, but
+`tabs_position: top` renders a sticky Home Assistant-style tab strip at the top
+of the card. Use `tabs_position: card` if you prefer the older pill buttons.
 
 You can switch between the included Energy tabs from the card editor or by
 using the tabs on the card.
@@ -152,15 +157,18 @@ date selector when `show_date_selection` is enabled for that tab. The date
 selector is rendered as a sticky bottom-centered footer, matching Home
 Assistant's built-in Energy dashboard behavior while the page scrolls.
 
-The date selector uses `--energy-dashboard-date-shadow` and
-`--energy-dashboard-date-scale` CSS variables. The default scale is `0.92` to
-keep the footer compact.
+The date selector uses `--energy-dashboard-date-shadow`,
+`--energy-dashboard-date-width`, `--energy-dashboard-date-height`,
+`--energy-dashboard-date-offset`, and `--energy-dashboard-date-scale` CSS
+variables. The default height is `48px` and the default inner scale is `0.88`
+to keep the footer compact.
 
 ## Dashboard Options
 
 - Home Assistant dashboard view setup
 - Separate Energy tab selection
 - Show or hide the view tabs
+- Top app-style tabs or card pill tabs
 - Show or hide individual Energy tabs
 - Per-tab badges
 - Show or hide the date selection card

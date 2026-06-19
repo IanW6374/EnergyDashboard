@@ -184,6 +184,7 @@ const DEFAULT_CONFIG = {
   group_by_floor: true,
   group_by_area: true,
   layout: "auto",
+  tabs_position: "top",
   visible_tabs: DEFAULT_VIEW_KEYS,
   hidden_tabs: [],
   tab_options: {},
@@ -673,8 +674,11 @@ class EditableEnergyDashboard extends HTMLElement {
   }
 
   _viewTabs() {
+    const positionClass =
+      this._config.tabs_position === "card" ? "card-tabs" : "top-tabs";
+
     return `
-      <div class="tabs">
+      <div class="tabs ${positionClass}">
         ${displayedViews(this._config)
           .map((view) => [view, DASHBOARD_VIEWS[view] || { label: view }])
           .map(
@@ -1094,6 +1098,17 @@ class EditableEnergyDashboardEditor extends HTMLElement {
         }>
         Show view tabs
       </label>
+      <label>
+        Tab style
+        <select data-key="tabs_position">
+          <option value="top" ${
+            (this._config.tabs_position || DEFAULT_CONFIG.tabs_position) === "top" ? "selected" : ""
+          }>Top app-style tabs</option>
+          <option value="card" ${
+            this._config.tabs_position === "card" ? "selected" : ""
+          }>Card pill tabs</option>
+        </select>
+      </label>
       <label class="check">
         <input type="checkbox" data-view="${viewKey}" data-tab-key="show_date_selection" ${
           options.show_date_selection !== false ? "checked" : ""
@@ -1337,31 +1352,31 @@ const baseStyles = () => `
       justify-content: center;
       width: 100%;
       margin-top: var(--energy-dashboard-gap, 12px);
-      padding: 4px 0;
+      padding: 0 0 8px;
       position: sticky;
       bottom: 0;
       z-index: 5;
       pointer-events: none;
+      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.28));
     }
     .date-footer[hidden] {
       display: none;
     }
     .energy-date-shell {
-      width: min(100%, 520px);
+      width: min(100%, var(--energy-dashboard-date-width, 500px));
+      height: var(--energy-dashboard-date-height, 48px);
       pointer-events: auto;
       border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
       border-radius: var(--energy-dashboard-card-radius, 12px);
       background: var(--ha-card-background, var(--card-background-color));
-      box-shadow: var(--energy-dashboard-date-shadow, 0 8px 24px rgba(0, 0, 0, 0.28));
-      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
+      box-shadow: var(--energy-dashboard-date-shadow, 0 10px 30px rgba(0, 0, 0, 0.32));
       overflow: hidden;
-      clip-path: inset(0 round var(--energy-dashboard-card-radius, 12px));
-      transform: scale(var(--energy-dashboard-date-scale, 0.92));
-      transform-origin: bottom center;
     }
     .energy-date-shell > * {
       width: 100%;
       max-width: none;
+      transform: translateY(var(--energy-dashboard-date-offset, -7px)) scale(var(--energy-dashboard-date-scale, 0.88));
+      transform-origin: top center;
     }
     .energy-date-shell ha-card {
       border: 0;
@@ -1387,6 +1402,18 @@ const baseStyles = () => `
       overflow-x: auto;
       scrollbar-width: thin;
     }
+    .tabs.top-tabs {
+      align-items: stretch;
+      gap: 0;
+      min-height: 48px;
+      margin: -12px -12px 12px;
+      padding: 0 12px;
+      background: var(--app-header-background-color, var(--card-background-color, #fff));
+      border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.24));
+      position: sticky;
+      top: var(--energy-dashboard-tabs-top, 0px);
+      z-index: 6;
+    }
     .tabs button {
       flex: 0 0 auto;
       border: 0;
@@ -1400,6 +1427,20 @@ const baseStyles = () => `
     .tabs button.active {
       background: var(--primary-color);
       color: var(--text-primary-color, #fff);
+    }
+    .tabs.top-tabs button {
+      border-radius: 0;
+      border-bottom: 2px solid transparent;
+      padding: 0 16px;
+      background: transparent;
+      color: var(--secondary-text-color);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .tabs.top-tabs button.active {
+      background: transparent;
+      border-bottom-color: var(--primary-text-color);
+      color: var(--primary-text-color);
     }
     .error {
       color: var(--error-color);
