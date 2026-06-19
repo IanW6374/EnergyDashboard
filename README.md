@@ -130,7 +130,8 @@ buttons.
 The top tab strip can be tuned with CSS variables if your Home Assistant theme
 or sidebar width needs a different offset. On desktop, the default left offset
 is Home Assistant's drawer width, falling back to `256px`. On narrower screens,
-the default mobile left offset is `0px`.
+the default mobile left offset is `0px`. The default right offset is `176px` so
+the tab strip does not cover Home Assistant's toolbar action icons.
 
 - `--energy-dashboard-tabs-top`: distance from the top of the browser window
 - `--energy-dashboard-tabs-left`: distance from the left edge, useful with a sidebar

@@ -1420,7 +1420,7 @@ const baseStyles = () => `
       position: fixed;
       top: var(--energy-dashboard-tabs-top, 0px);
       left: var(--energy-dashboard-tabs-left, var(--mdc-drawer-width, 256px));
-      right: var(--energy-dashboard-tabs-right, 0px);
+      right: var(--energy-dashboard-tabs-right, 176px);
       z-index: 6;
     }
     @media (max-width: 870px) {
