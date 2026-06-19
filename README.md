@@ -141,6 +141,8 @@ YAML-mode dashboards must be edited in YAML.
 - `water`
 - `now`
 
+The `overview` key is displayed as **Summary** in the tab bar.
+
 The `overview`, `electricity`, `gas`, and `water` Energy tabs can include the
 date selector when `show_date_selection` is enabled for that tab. The date
 selector is rendered as a sticky bottom-centered footer, matching Home
@@ -152,7 +154,9 @@ Assistant's built-in Energy dashboard behavior while the page scrolls.
 - Separate Energy tab selection
 - Show or hide the view tabs
 - Show or hide individual Energy tabs
+- Per-tab badges
 - Show or hide the date selection card
+- Battery SoC history card in the Electricity tab
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
 - Per-tab column layout
@@ -207,6 +211,8 @@ Supported layout values:
 - `layout_type`: set to `sidebar` to split a tab into main and sidebar columns
 - `sidebar_cards`: card keys or built-in card types to place in the sidebar
 - `sidebar_columns`: number of columns inside the sidebar, usually `1` or `2`
+- `badges`: entity/value badges to show at the top of the Energy tab
+- `battery_soc_entity`: battery state-of-charge percentage entity for the Electricity tab's `battery_soc` card
 
 Each non-date built-in Energy card is wrapped in a dashboard shell so it keeps
 a visible rounded outline and stays fixed in the configured grid position.
@@ -302,6 +308,34 @@ tab_options:
       distribution: full
       grid_balance: full
 ```
+
+Electricity badges and Battery SoC example:
+
+```yaml
+tab_options:
+  electricity:
+    battery_soc_entity: sensor.home_battery_state_of_charge
+    battery_soc_hours_to_show: 24
+    badges:
+      - entity: sensor.home_battery_state_of_charge
+        name: Battery
+        icon: mdi:battery
+      - entity: sensor.solar_power
+        name: Solar
+        icon: mdi:solar-power
+    card_order:
+      - usage
+      - solar
+      - battery_soc
+      - sources
+    card_layout:
+      battery_soc: full
+```
+
+The Battery SoC card is part of the Electricity Energy tab and uses Home
+Assistant's built-in `history-graph` card. Add `battery_soc` under
+`tab_options.electricity.card_order` or `tab_options.electricity.card_layout`
+when you want to place it.
 
 In the visual editor, choose an **Energy tab to edit**, then use each card row's
 Up/Down buttons, order field, and width selector. The editor saves a full

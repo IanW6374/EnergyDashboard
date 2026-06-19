@@ -1,4 +1,8 @@
 const CARD_TYPES = {
+  "history-graph": {
+    label: "History graph",
+    size: 4,
+  },
   "energy-distribution": {
     label: "Energy distribution",
     size: 3,
@@ -83,7 +87,7 @@ const CARD_TYPES = {
 
 const DASHBOARD_VIEWS = {
   overview: {
-    label: "Overview",
+    label: "Summary",
     cards: [
       { key: "date", type: "energy-date-selection" },
       { key: "distribution", type: "energy-distribution", title: "Energy distribution" },
@@ -118,6 +122,12 @@ const DASHBOARD_VIEWS = {
       { key: "compare", type: "energy-compare" },
       { key: "usage", type: "energy-usage-graph", title: "Energy usage" },
       { key: "solar", type: "energy-solar-graph", title: "Solar production" },
+      {
+        key: "battery_soc",
+        type: "history-graph",
+        title: "Battery SoC",
+        hours_to_show: 24,
+      },
       {
         key: "sources",
         type: "energy-sources-table",
@@ -179,6 +189,7 @@ const DEFAULT_CONFIG = {
   tab_options: {},
   card_options: {},
   hidden_cards: [],
+  badges: {},
 };
 
 const clone = (value) => JSON.parse(JSON.stringify(value || {}));
@@ -251,6 +262,7 @@ const dashboardCardConfig = (card, config, viewKey) => {
 
   applyCommonCardOptions(result, options);
   applyTypeOptions(result, options, result.type);
+  applySpecialCardOptions(result, options, card);
   delete result.key;
 
   return result;
@@ -274,6 +286,20 @@ const applyTypeOptions = (result, config, cardType) => {
   }
 };
 
+const applySpecialCardOptions = (result, config, card) => {
+  if (card.key !== "battery_soc") {
+    return;
+  }
+
+  const entity = config.battery_soc_entity || config.battery_soc_sensor;
+  const entities = config.battery_soc_entities || (entity ? [entity] : undefined);
+  if (entities?.length && !result.entities) {
+    result.entities = entities;
+  }
+  result.title = result.title || "Battery SoC";
+  result.hours_to_show = result.hours_to_show || config.battery_soc_hours_to_show || 24;
+};
+
 const viewCards = (config, viewKey = currentViewKey(config)) => {
   const view = DASHBOARD_VIEWS[viewKey] || DASHBOARD_VIEWS.electricity;
   const options = tabConfig(config, viewKey);
@@ -290,9 +316,60 @@ const viewCards = (config, viewKey = currentViewKey(config)) => {
     if (!options.show_date_selection && card.type === "energy-date-selection") {
       return false;
     }
+    if (card.key === "battery_soc" && !hasBatterySocConfig(config, viewKey)) {
+      return false;
+    }
     return enabled ? enabled.has(card.key) || enabled.has(card.type) : !hidden.has(card.key) && !hidden.has(card.type);
   });
 };
+
+const hasBatterySocConfig = (config, viewKey) => {
+  const options = tabConfig(config, viewKey);
+  const cardOptions = tabCardOptions(config, viewKey);
+  return Boolean(
+    options.battery_soc_entity ||
+      options.battery_soc_sensor ||
+      options.battery_soc_entities?.length ||
+      cardOptions.battery_soc?.entities?.length ||
+      cardOptions["history-graph"]?.entities?.length
+  );
+};
+
+const badgeConfigs = (config, viewKey) => {
+  const options = tabConfig(config, viewKey);
+  const badges = options.badges ?? config.badges?.[viewKey] ?? config.badges;
+  return Array.isArray(badges) ? badges : [];
+};
+
+const badgeName = (badge, state) =>
+  badge.name || badge.label || state?.attributes?.friendly_name || badge.entity || "";
+
+const badgeValue = (badge, state) => {
+  if (!badge.entity) {
+    return badge.value ?? "";
+  }
+  if (!state) {
+    return "Unavailable";
+  }
+  const unit = badge.unit ?? state.attributes?.unit_of_measurement ?? "";
+  return `${state.state}${unit ? ` ${unit}` : ""}`;
+};
+
+const renderBadges = (hass, badges) =>
+  badges
+    .map((badge) => {
+      const state = badge.entity ? hass?.states?.[badge.entity] : undefined;
+      return `
+        <div class="badge">
+          ${badge.icon ? `<ha-icon icon="${escapeAttr(badge.icon)}"></ha-icon>` : ""}
+          <div>
+            <div class="badge-name">${escapeHtml(badgeName(badge, state))}</div>
+            <div class="badge-value">${escapeHtml(badgeValue(badge, state))}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
 
 const orderedCards = (cards, cardOrder) => {
   if (!cardOrder?.length) {
@@ -486,6 +563,7 @@ class EditableEnergyDashboard extends HTMLElement {
         cardShell._energyCard.hass = hass;
       }
     });
+    this._updateBadges();
   }
 
   getCardSize() {
@@ -526,21 +604,21 @@ class EditableEnergyDashboard extends HTMLElement {
     this._cards = [];
     this.shadowRoot.innerHTML = `
       ${baseStyles()}
-      <ha-card>
-        <div class="dashboard">
-          ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
-          <div class="${contentClass(options)}">
-            <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
-            <div id="sidebar" class="${sidebarGridClass(options)} sidebar-grid" style="${sidebarGridStyle(options)}"></div>
-          </div>
-          <div id="date-footer" class="date-footer"></div>
+      <div class="dashboard">
+        ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
+        <div id="badges" class="badges"></div>
+        <div class="${contentClass(options)}">
+          <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
+          <div id="sidebar" class="${sidebarGridClass(options)} sidebar-grid" style="${sidebarGridStyle(options)}"></div>
         </div>
-      </ha-card>
+        <div id="date-footer" class="date-footer"></div>
+      </div>
     `;
 
     const grid = this.shadowRoot.getElementById("grid");
     const sidebar = this.shadowRoot.getElementById("sidebar");
     const dateFooter = this.shadowRoot.getElementById("date-footer");
+    this._updateBadges();
 
     try {
       this._helpers = this._helpers || (await window.loadCardHelpers());
@@ -611,6 +689,17 @@ class EditableEnergyDashboard extends HTMLElement {
           .join("")}
       </div>
     `;
+  }
+
+  _updateBadges() {
+    const badges = this.shadowRoot?.getElementById("badges");
+    if (!badges) {
+      return;
+    }
+
+    const items = badgeConfigs(this._config, currentViewKey(this._config));
+    badges.innerHTML = renderBadges(this._hass, items);
+    badges.hidden = items.length === 0;
   }
 
   connectedCallback() {
@@ -1147,6 +1236,40 @@ const baseStyles = () => `
     .dashboard {
       padding: 12px;
     }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+    .badges[hidden] {
+      display: none;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 6px 12px;
+      border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
+      border-radius: 999px;
+      background: var(--ha-card-background, var(--card-background-color));
+      box-shadow: var(--ha-card-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.08));
+      color: var(--primary-text-color);
+    }
+    .badge ha-icon {
+      color: var(--primary-color);
+    }
+    .badge-name {
+      color: var(--secondary-text-color);
+      font-size: 12px;
+      line-height: 16px;
+    }
+    .badge-value {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 18px;
+    }
     .content {
       display: block;
     }
@@ -1228,7 +1351,7 @@ const baseStyles = () => `
       border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
       border-radius: var(--energy-dashboard-card-radius, 12px);
       background: var(--ha-card-background, var(--card-background-color));
-      box-shadow: var(--ha-card-box-shadow, 0 1px 8px rgba(0, 0, 0, 0.16));
+      box-shadow: var(--energy-dashboard-date-shadow, 0 4px 16px rgba(0, 0, 0, 0.24));
       overflow: hidden;
       clip-path: inset(0 round var(--energy-dashboard-card-radius, 12px));
     }
