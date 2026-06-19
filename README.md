@@ -204,6 +204,9 @@ Supported layout values:
 - `card_order`: ordered list of card keys or card types to place first
 - `card_layout`: set a card key or type to `full` or a column span number from `2` to `6`
 - `card_position`: set exact grid row, column, row span, and column span for a card
+- `layout_type`: set to `sidebar` to split a tab into main and sidebar columns
+- `sidebar_cards`: card keys or built-in card types to place in the sidebar
+- `sidebar_columns`: number of columns inside the sidebar, usually `1` or `2`
 
 Each non-date built-in Energy card is wrapped in a dashboard shell so it keeps
 a visible rounded outline and stays fixed in the configured grid position.
@@ -266,6 +269,39 @@ tab_options:
 When `card_position` is set for a card, it overrides that card's automatic
 placement in the grid. `card_order` still controls the fallback order for cards
 without an exact position.
+
+Sidebar layout example:
+
+```yaml
+tab_options:
+  electricity:
+    layout_type: sidebar
+    columns: 1
+    sidebar_columns: 2
+    sidebar_cards:
+      - distribution
+      - grid_balance
+      - grid_neutrality
+      - solar_consumed
+      - self_sufficiency
+      - carbon
+    card_order:
+      - usage
+      - solar
+      - sources
+      - distribution
+      - grid_balance
+      - grid_neutrality
+      - solar_consumed
+      - self_sufficiency
+      - carbon
+    card_layout:
+      usage: full
+      solar: full
+      sources: full
+      distribution: full
+      grid_balance: full
+```
 
 In the visual editor, choose an **Energy tab to edit**, then use each card row's
 Up/Down buttons, order field, and width selector. The editor saves a full

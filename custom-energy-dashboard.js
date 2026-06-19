@@ -351,6 +351,24 @@ const gridClass = (options) => {
   return ["1", "2", "3", "4", "5", "6"].includes(columns) ? `grid columns-${columns}` : "grid";
 };
 
+const contentClass = (options) =>
+  options.layout_type === "sidebar" || options.sidebar_cards?.length
+    ? "content sidebar-layout"
+    : "content";
+
+const sidebarCardKeys = (options) => new Set(options.sidebar_cards || []);
+
+const sidebarGridStyle = (options) => {
+  const gap = Number(options.gap || 12);
+  const minWidth = Number(options.sidebar_min_card_width || 180);
+  return `--energy-dashboard-gap: ${gap}px; --energy-dashboard-min-card-width: ${minWidth}px;`;
+};
+
+const sidebarGridClass = (options) => {
+  const columns = String(options.sidebar_columns || "1");
+  return ["1", "2", "3"].includes(columns) ? `grid columns-${columns}` : "grid columns-1";
+};
+
 const applyCardLayout = (element, layout) => {
   element.style.removeProperty("grid-column");
   element.style.removeProperty("grid-row");
@@ -511,13 +529,17 @@ class EditableEnergyDashboard extends HTMLElement {
       <ha-card>
         <div class="dashboard">
           ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
-          <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
+          <div class="${contentClass(options)}">
+            <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
+            <div id="sidebar" class="${sidebarGridClass(options)} sidebar-grid" style="${sidebarGridStyle(options)}"></div>
+          </div>
           <div id="date-footer" class="date-footer"></div>
         </div>
       </ha-card>
     `;
 
     const grid = this.shadowRoot.getElementById("grid");
+    const sidebar = this.shadowRoot.getElementById("sidebar");
     const dateFooter = this.shadowRoot.getElementById("date-footer");
 
     try {
@@ -556,7 +578,14 @@ class EditableEnergyDashboard extends HTMLElement {
       const gridElements = elements.filter(
         (element) => element.dataset.cardType !== "energy-date-selection"
       );
-      grid.replaceChildren(...gridElements);
+      const sidebarKeys = sidebarCardKeys(options);
+      const sidebarElements = gridElements.filter(
+        (element) => sidebarKeys.has(element.dataset.cardKey) || sidebarKeys.has(element.dataset.cardType)
+      );
+      const mainElements = gridElements.filter((element) => !sidebarElements.includes(element));
+      grid.replaceChildren(...mainElements);
+      sidebar.replaceChildren(...sidebarElements);
+      sidebar.hidden = sidebarElements.length === 0;
       dateFooter.replaceChildren(...dateElements);
       dateFooter.hidden = dateElements.length === 0;
     } catch (error) {
@@ -1110,10 +1139,22 @@ const baseStyles = () => `
       display: block;
       width: 100%;
       max-width: none;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
       overflow: visible;
     }
     .dashboard {
       padding: 12px;
+    }
+    .content {
+      display: block;
+    }
+    .content.sidebar-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, var(--energy-dashboard-sidebar-width, 30%));
+      gap: var(--energy-dashboard-gap, 12px);
+      align-items: start;
     }
     .grid {
       display: grid;
@@ -1139,6 +1180,9 @@ const baseStyles = () => `
     }
     .grid.columns-6 {
       grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .sidebar-grid[hidden] {
+      display: none;
     }
     .energy-card-shell {
       display: block;
@@ -1181,12 +1225,26 @@ const baseStyles = () => `
     .energy-date-shell {
       width: min(100%, 520px);
       pointer-events: auto;
+      border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
+      border-radius: var(--energy-dashboard-card-radius, 12px);
+      background: var(--ha-card-background, var(--card-background-color));
+      box-shadow: var(--ha-card-box-shadow, 0 1px 8px rgba(0, 0, 0, 0.16));
+      overflow: hidden;
+      clip-path: inset(0 round var(--energy-dashboard-card-radius, 12px));
     }
     .energy-date-shell > * {
       width: 100%;
       max-width: none;
     }
+    .energy-date-shell ha-card {
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+    }
     @media (max-width: 640px) {
+      .content.sidebar-layout {
+        grid-template-columns: 1fr;
+      }
       .grid.columns-2,
       .grid.columns-3,
       .grid.columns-4,
