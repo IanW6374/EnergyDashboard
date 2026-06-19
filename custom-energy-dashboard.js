@@ -1419,9 +1419,14 @@ const baseStyles = () => `
       border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.24));
       position: fixed;
       top: var(--energy-dashboard-tabs-top, 0px);
-      left: var(--energy-dashboard-tabs-left, var(--mdc-drawer-width, 0px));
+      left: var(--energy-dashboard-tabs-left, var(--mdc-drawer-width, 256px));
       right: var(--energy-dashboard-tabs-right, 0px);
       z-index: 6;
+    }
+    @media (max-width: 870px) {
+      .tabs.top-tabs {
+        left: var(--energy-dashboard-tabs-mobile-left, 0px);
+      }
     }
     .tabs button {
       flex: 0 0 auto;
