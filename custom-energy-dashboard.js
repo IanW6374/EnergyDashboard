@@ -603,9 +603,13 @@ class EditableEnergyDashboard extends HTMLElement {
 
     this._renderKey = renderKey;
     this._cards = [];
+    const dashboardClass =
+      this._config.show_view_tabs !== false && this._config.tabs_position !== "card"
+        ? "dashboard dashboard-top-tabs"
+        : "dashboard";
     this.shadowRoot.innerHTML = `
       ${baseStyles()}
-      <div class="dashboard">
+      <div class="${dashboardClass}">
         ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
         <div id="badges" class="badges"></div>
         <div class="${contentClass(options)}">
@@ -1251,6 +1255,9 @@ const baseStyles = () => `
     .dashboard {
       padding: 12px;
     }
+    .dashboard.dashboard-top-tabs {
+      padding-top: calc(12px + var(--energy-dashboard-tabs-height, 48px));
+    }
     .badges {
       display: flex;
       flex-wrap: wrap;
@@ -1405,13 +1412,15 @@ const baseStyles = () => `
     .tabs.top-tabs {
       align-items: stretch;
       gap: 0;
-      min-height: 48px;
-      margin: -12px -12px 12px;
+      height: var(--energy-dashboard-tabs-height, 48px);
+      margin: 0;
       padding: 0 12px;
       background: var(--app-header-background-color, var(--card-background-color, #fff));
       border-bottom: 1px solid var(--divider-color, rgba(127, 127, 127, 0.24));
-      position: sticky;
+      position: fixed;
       top: var(--energy-dashboard-tabs-top, 0px);
+      left: var(--energy-dashboard-tabs-left, var(--mdc-drawer-width, 0px));
+      right: var(--energy-dashboard-tabs-right, 0px);
       z-index: 6;
     }
     .tabs button {

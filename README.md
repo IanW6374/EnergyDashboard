@@ -123,8 +123,17 @@ The page title at the very top, such as `Energy`, is the Home Assistant
 Lovelace view title from `views[].title`, not part of this custom card. Rename
 or blank that Lovelace view title if you do not want it shown. A Lovelace card
 cannot inject its tabs into Home Assistant's own app header, but
-`tabs_position: top` renders a sticky Home Assistant-style tab strip at the top
-of the card. Use `tabs_position: card` if you prefer the older pill buttons.
+`tabs_position: top` renders a fixed Home Assistant-style tab strip at the top
+of the browser window. Use `tabs_position: card` if you prefer the older pill
+buttons.
+
+The top tab strip can be tuned with CSS variables if your Home Assistant theme
+or sidebar width needs a different offset:
+
+- `--energy-dashboard-tabs-top`: distance from the top of the browser window
+- `--energy-dashboard-tabs-left`: distance from the left edge, useful with a sidebar
+- `--energy-dashboard-tabs-right`: distance from the right edge
+- `--energy-dashboard-tabs-height`: reserved height for the tab strip
 
 You can switch between the included Energy tabs from the card editor or by
 using the tabs on the card.
