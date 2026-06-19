@@ -345,16 +345,18 @@ const gridClass = (options) => {
 const applyCardLayout = (element, layout) => {
   if (!layout) {
     element.style.removeProperty("grid-column");
-    return;
-  }
-  if (layout === "full" || layout.full_width) {
+  } else if (layout === "full" || layout.full_width) {
     element.style.gridColumn = "1 / -1";
-    return;
+  } else {
+    const span = Number(typeof layout === "object" ? layout.columns : layout);
+    if (Number.isFinite(span) && span > 1) {
+      element.style.gridColumn = `span ${Math.min(span, 4)}`;
+    }
   }
-  const span = Number(typeof layout === "object" ? layout.columns : layout);
-  if (Number.isFinite(span) && span > 1) {
-    element.style.gridColumn = `span ${Math.min(span, 4)}`;
-  }
+};
+
+const applyCardPosition = (element, index) => {
+  element.style.order = String(index);
 };
 
 const renderError = (mount, message) => {
@@ -457,17 +459,20 @@ class EditableEnergyDashboard extends HTMLElement {
     try {
       this._helpers = this._helpers || (await window.loadCardHelpers());
       const elements = await Promise.all(
-        cards.map(async (card) => {
+        cards.map(async (card, index) => {
           const cardConfig = dashboardCardConfig(card, this._config, viewKey);
           try {
             const element = await this._helpers.createCardElement(cardConfig);
             applyCardLayout(element, cardLayoutFor(this._config, viewKey, card));
+            applyCardPosition(element, index);
             if (this._hass) {
               element.hass = this._hass;
             }
             return element;
           } catch (error) {
-            return createErrorCard(`Unable to load ${cardConfig.type}: ${error.message}`);
+            const errorCard = createErrorCard(`Unable to load ${cardConfig.type}: ${error.message}`);
+            applyCardPosition(errorCard, index);
+            return errorCard;
           }
         })
       );
@@ -1030,6 +1035,7 @@ const baseStyles = () => `
       grid-template-columns: repeat(auto-fit, minmax(var(--energy-dashboard-min-card-width, 280px), 1fr));
       gap: var(--energy-dashboard-gap, 12px);
       align-items: start;
+      grid-auto-flow: row;
     }
     .grid.columns-1 {
       grid-template-columns: 1fr;

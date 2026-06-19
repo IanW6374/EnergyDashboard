@@ -130,7 +130,8 @@ visible. In the selected Energy tab's card list, use each card's width selector
 to set that card to automatic width, full width, or a 2/3/4-column span.
 
 If your dashboard is YAML-mode, Home Assistant does not show the normal visual
-card editor. Edit `visible_tabs` and `tab_options` directly in YAML instead.
+card editor for custom cards. The editor exists for UI-managed dashboards, but
+YAML-mode dashboards must be edited in YAML.
 
 ## Included Dashboard Views
 
@@ -225,18 +226,28 @@ Up/Down buttons, order field, and width selector. The editor saves a full
 `card_order` for the selected Energy tab.
 
 To put the date selector at the bottom of the Electricity tab, include `date`
-last in that tab's `card_order`:
+last in that tab's `card_order`. Any visible card that is not listed in
+`card_order` is appended after the listed cards, so include every visible card
+before `date` if `date` must be the final card.
 
 ```yaml
 tab_options:
   electricity:
+    hidden_cards:
+      - carbon
+      - grid_balance
+      - device_detail
+      - devices
+      - sankey
     card_order:
       - distribution
+      - grid_neutrality
+      - solar_consumed
+      - self_sufficiency
+      - compare
       - usage
       - solar
       - sources
-      - devices
-      - sankey
       - date
 ```
 
