@@ -1239,6 +1239,7 @@ const baseStyles = () => `
     .badges {
       display: flex;
       flex-wrap: wrap;
+      justify-content: center;
       gap: 8px;
       margin: 0 0 12px;
     }
@@ -1336,7 +1337,7 @@ const baseStyles = () => `
       justify-content: center;
       width: 100%;
       margin-top: var(--energy-dashboard-gap, 12px);
-      padding: 8px 0;
+      padding: 4px 0;
       position: sticky;
       bottom: 0;
       z-index: 5;
@@ -1351,9 +1352,12 @@ const baseStyles = () => `
       border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
       border-radius: var(--energy-dashboard-card-radius, 12px);
       background: var(--ha-card-background, var(--card-background-color));
-      box-shadow: var(--energy-dashboard-date-shadow, 0 4px 16px rgba(0, 0, 0, 0.24));
+      box-shadow: var(--energy-dashboard-date-shadow, 0 8px 24px rgba(0, 0, 0, 0.28));
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.18));
       overflow: hidden;
       clip-path: inset(0 round var(--energy-dashboard-card-radius, 12px));
+      transform: scale(var(--energy-dashboard-date-scale, 0.92));
+      transform-origin: bottom center;
     }
     .energy-date-shell > * {
       width: 100%;

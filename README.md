@@ -117,6 +117,10 @@ Home Assistant will treat that as a view definition instead of a card.
 Use `type: panel` on the Lovelace view if you want this dashboard card to take
 the full available page width.
 
+The page title at the very top, such as `Energy`, is the Home Assistant
+Lovelace view title from `views[].title`, not part of this custom card. Rename
+or blank that Lovelace view title if you do not want it shown.
+
 You can switch between the included Energy tabs from the card editor or by
 using the tabs on the card.
 
@@ -147,6 +151,10 @@ The `overview`, `electricity`, `gas`, and `water` Energy tabs can include the
 date selector when `show_date_selection` is enabled for that tab. The date
 selector is rendered as a sticky bottom-centered footer, matching Home
 Assistant's built-in Energy dashboard behavior while the page scrolls.
+
+The date selector uses `--energy-dashboard-date-shadow` and
+`--energy-dashboard-date-scale` CSS variables. The default scale is `0.92` to
+keep the footer compact.
 
 ## Dashboard Options
 
