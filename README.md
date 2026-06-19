@@ -168,10 +168,10 @@ YAML-mode dashboards must be edited in YAML.
 
 The `overview` key is displayed as **Summary** in the tab bar.
 
-The `overview`, `electricity`, `gas`, and `water` Energy tabs can include the
-date selector when `show_date_selection` is enabled for that tab. The date
-selector is rendered as a sticky bottom-centered footer, matching Home
-Assistant's built-in Energy dashboard behavior while the page scrolls.
+All included Energy tabs can include the date selector when
+`show_date_selection` is enabled for that tab. The date selector is rendered as
+a sticky bottom-centered footer, matching Home Assistant's built-in Energy
+dashboard behavior while the page scrolls.
 
 The date selector uses `--energy-dashboard-date-shadow`,
 `--energy-dashboard-date-width`, `--energy-dashboard-date-height`,

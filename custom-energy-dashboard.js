@@ -167,6 +167,7 @@ const DASHBOARD_VIEWS = {
   now: {
     label: "Now",
     cards: [
+      { key: "date", type: "energy-date-selection" },
       { key: "power_sources", type: "power-sources-graph", title: "Power sources" },
       { key: "power_sankey", type: "power-sankey", title: "Power Sankey" },
       { key: "water_flow", type: "water-flow-sankey", title: "Water flow" },
