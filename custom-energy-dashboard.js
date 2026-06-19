@@ -362,7 +362,7 @@ const applyCardPosition = (element, index) => {
 
 const createCardShell = (element, card, layout, index) => {
   const shell = document.createElement("div");
-  shell.className = "energy-card-shell";
+  shell.className = card.type === "energy-date-selection" ? "energy-date-shell" : "energy-card-shell";
   shell.dataset.cardKey = card.key;
   shell.dataset.cardType = card.type;
   shell._energyCard = element;
@@ -370,10 +370,12 @@ const createCardShell = (element, card, layout, index) => {
   applyCardLayout(shell, layout);
   applyCardPosition(shell, index);
 
+  if (card.type !== "energy-date-selection") {
+    element.style.position = "static";
+    element.style.inset = "auto";
+  }
   element.style.removeProperty("grid-column");
   element.style.removeProperty("order");
-  element.style.position = "static";
-  element.style.inset = "auto";
   element.style.width = "100%";
   element.style.maxWidth = "none";
   shell.replaceChildren(element);
@@ -474,11 +476,13 @@ class EditableEnergyDashboard extends HTMLElement {
         <div class="dashboard">
           ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
           <div id="grid" class="${gridClass(options)}" style="${gridStyle(options)}"></div>
+          <div id="date-footer" class="date-footer"></div>
         </div>
       </ha-card>
     `;
 
     const grid = this.shadowRoot.getElementById("grid");
+    const dateFooter = this.shadowRoot.getElementById("date-footer");
 
     try {
       this._helpers = this._helpers || (await window.loadCardHelpers());
@@ -503,7 +507,15 @@ class EditableEnergyDashboard extends HTMLElement {
         })
       );
       this._cards = elements;
-      grid.replaceChildren(...elements);
+      const dateElements = elements.filter(
+        (element) => element.dataset.cardType === "energy-date-selection"
+      );
+      const gridElements = elements.filter(
+        (element) => element.dataset.cardType !== "energy-date-selection"
+      );
+      grid.replaceChildren(...gridElements);
+      dateFooter.replaceChildren(...dateElements);
+      dateFooter.hidden = dateElements.length === 0;
     } catch (error) {
       this._cards = [];
       renderError(grid, `Unable to load energy dashboard: ${error.message}`);
@@ -1079,10 +1091,10 @@ const baseStyles = () => `
       display: block;
       width: 100%;
       min-width: 0;
-      border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color));
+      border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
       border-radius: var(--ha-card-border-radius, 12px);
       background: var(--ha-card-background, var(--card-background-color));
-      box-shadow: var(--ha-card-box-shadow, none);
+      box-shadow: var(--ha-card-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.08));
       overflow: hidden;
     }
     .energy-card-shell > * {
@@ -1097,6 +1109,22 @@ const baseStyles = () => `
       border: 0;
       box-shadow: none;
       border-radius: 0;
+    }
+    .date-footer {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      margin-top: var(--energy-dashboard-gap, 12px);
+    }
+    .date-footer[hidden] {
+      display: none;
+    }
+    .energy-date-shell {
+      width: min(100%, 520px);
+    }
+    .energy-date-shell > * {
+      width: 100%;
+      max-width: none;
     }
     @media (max-width: 640px) {
       .grid.columns-2,
