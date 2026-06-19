@@ -127,7 +127,7 @@ card.
 
 Use **Energy tabs shown** in the editor to choose which internal Energy tabs are
 visible. In the selected Energy tab's card list, use each card's width selector
-to set that card to automatic width, full width, or a 2/3/4-column span.
+to set that card to automatic width, full width, or a 2/3/4/5/6-column span.
 
 If your dashboard is YAML-mode, Home Assistant does not show the normal visual
 card editor for custom cards. The editor exists for UI-managed dashboards, but
@@ -143,8 +143,8 @@ YAML-mode dashboards must be edited in YAML.
 
 The `overview`, `electricity`, `gas`, and `water` Energy tabs can include the
 date selector when `show_date_selection` is enabled for that tab. The date
-selector is rendered as a bottom-centered footer, matching Home Assistant's
-built-in Energy dashboard behavior.
+selector is rendered as a sticky bottom-centered footer, matching Home
+Assistant's built-in Energy dashboard behavior while the page scrolls.
 
 ## Dashboard Options
 
@@ -197,15 +197,16 @@ tab_options:
 
 Supported layout values:
 
-- `columns`: `auto`, `1`, `2`, `3`, or `4`
+- `columns`: `auto`, `1`, `2`, `3`, `4`, `5`, or `6`
 - `min_card_width`: minimum card width in pixels for `auto` layout
 - `gap`: spacing between cards in pixels
 - `hidden_cards`: card keys or built-in card types to hide in that tab
 - `card_order`: ordered list of card keys or card types to place first
-- `card_layout`: set a card key or type to `full` or a column span number
+- `card_layout`: set a card key or type to `full` or a column span number from `2` to `6`
+- `card_position`: set exact grid row, column, row span, and column span for a card
 
 Each non-date built-in Energy card is wrapped in a dashboard shell so it keeps
-a visible outline and stays fixed in the configured grid position.
+a visible rounded outline and stays fixed in the configured grid position.
 
 Card order and width example:
 
@@ -228,6 +229,43 @@ tab_options:
       devices: 2
       sankey: full
 ```
+
+Exact grid position example:
+
+```yaml
+tab_options:
+  electricity:
+    columns: 6
+    card_position:
+      distribution:
+        row: 1
+        column: 1
+        column_span: 6
+      usage:
+        row: 2
+        column: 1
+        column_span: 3
+      solar:
+        row: 2
+        column: 4
+        column_span: 3
+      sources:
+        row: 3
+        column: 1
+        column_span: 2
+      devices:
+        row: 3
+        column: 3
+        column_span: 2
+      sankey:
+        row: 3
+        column: 5
+        column_span: 2
+```
+
+When `card_position` is set for a card, it overrides that card's automatic
+placement in the grid. `card_order` still controls the fallback order for cards
+without an exact position.
 
 In the visual editor, choose an **Energy tab to edit**, then use each card row's
 Up/Down buttons, order field, and width selector. The editor saves a full

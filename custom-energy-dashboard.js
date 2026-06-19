@@ -332,6 +332,14 @@ const cardLayoutFor = (config, viewKey, card) => {
   return layout[card.key] || layout[card.type];
 };
 
+const cardPositionFor = (config, viewKey, card) => {
+  const position = {
+    ...clone(config.card_position),
+    ...clone(config.tab_options?.[viewKey]?.card_position),
+  };
+  return position[card.key] || position[card.type];
+};
+
 const gridStyle = (options) => {
   const gap = Number(options.gap || 12);
   const minWidth = Number(options.min_card_width || 280);
@@ -340,19 +348,46 @@ const gridStyle = (options) => {
 
 const gridClass = (options) => {
   const columns = String(options.columns || "auto");
-  return ["1", "2", "3", "4"].includes(columns) ? `grid columns-${columns}` : "grid";
+  return ["1", "2", "3", "4", "5", "6"].includes(columns) ? `grid columns-${columns}` : "grid";
 };
 
 const applyCardLayout = (element, layout) => {
+  element.style.removeProperty("grid-column");
+  element.style.removeProperty("grid-row");
+
   if (!layout) {
-    element.style.removeProperty("grid-column");
+    return;
   } else if (layout === "full" || layout.full_width) {
     element.style.gridColumn = "1 / -1";
   } else {
     const span = Number(typeof layout === "object" ? layout.columns : layout);
     if (Number.isFinite(span) && span > 1) {
-      element.style.gridColumn = `span ${Math.min(span, 4)}`;
+      element.style.gridColumn = `span ${Math.min(span, 6)}`;
     }
+  }
+};
+
+const applyCardGridPosition = (element, position) => {
+  if (!position || typeof position !== "object") {
+    return;
+  }
+
+  const column = Number(position.column ?? position.col);
+  const row = Number(position.row);
+  const columnSpan = Number(position.column_span ?? position.col_span ?? position.columns);
+  const rowSpan = Number(position.row_span ?? position.rows);
+
+  if (Number.isFinite(column) && column > 0) {
+    element.style.gridColumnStart = String(column);
+  }
+  if (Number.isFinite(columnSpan) && columnSpan > 0) {
+    element.style.gridColumnEnd = `span ${Math.min(columnSpan, 6)}`;
+  }
+  if (Number.isFinite(row) && row > 0) {
+    element.style.gridRowStart = String(row);
+  }
+  if (Number.isFinite(rowSpan) && rowSpan > 0) {
+    element.style.gridRowEnd = `span ${rowSpan}`;
   }
 };
 
@@ -360,7 +395,7 @@ const applyCardPosition = (element, index) => {
   element.style.order = String(index);
 };
 
-const createCardShell = (element, card, layout, index) => {
+const createCardShell = (element, card, layout, position, index) => {
   const shell = document.createElement("div");
   shell.className = card.type === "energy-date-selection" ? "energy-date-shell" : "energy-card-shell";
   shell.dataset.cardKey = card.key;
@@ -368,6 +403,7 @@ const createCardShell = (element, card, layout, index) => {
   shell._energyCard = element;
 
   applyCardLayout(shell, layout);
+  applyCardGridPosition(shell, position);
   applyCardPosition(shell, index);
 
   if (card.type !== "energy-date-selection") {
@@ -498,11 +534,18 @@ class EditableEnergyDashboard extends HTMLElement {
               element,
               card,
               cardLayoutFor(this._config, viewKey, card),
+              cardPositionFor(this._config, viewKey, card),
               index
             );
           } catch (error) {
             const errorCard = createErrorCard(`Unable to load ${cardConfig.type}: ${error.message}`);
-            return createCardShell(errorCard, card, cardLayoutFor(this._config, viewKey, card), index);
+            return createCardShell(
+              errorCard,
+              card,
+              cardLayoutFor(this._config, viewKey, card),
+              cardPositionFor(this._config, viewKey, card),
+              index
+            );
           }
         })
       );
@@ -949,6 +992,8 @@ class EditableEnergyDashboardEditor extends HTMLElement {
             <option value="2" ${String(options.columns) === "2" ? "selected" : ""}>2</option>
             <option value="3" ${String(options.columns) === "3" ? "selected" : ""}>3</option>
             <option value="4" ${String(options.columns) === "4" ? "selected" : ""}>4</option>
+            <option value="5" ${String(options.columns) === "5" ? "selected" : ""}>5</option>
+            <option value="6" ${String(options.columns) === "6" ? "selected" : ""}>6</option>
           </select>
         </label>
         <label>
@@ -1034,6 +1079,8 @@ class EditableEnergyDashboardEditor extends HTMLElement {
                   <option value="2" ${layout === "2" ? "selected" : ""}>Span 2</option>
                   <option value="3" ${layout === "3" ? "selected" : ""}>Span 3</option>
                   <option value="4" ${layout === "4" ? "selected" : ""}>Span 4</option>
+                  <option value="5" ${layout === "5" ? "selected" : ""}>Span 5</option>
+                  <option value="6" ${layout === "6" ? "selected" : ""}>Span 6</option>
                 </select>
               </div>
             `;
@@ -1063,7 +1110,7 @@ const baseStyles = () => `
       display: block;
       width: 100%;
       max-width: none;
-      overflow: hidden;
+      overflow: visible;
     }
     .dashboard {
       padding: 12px;
@@ -1087,15 +1134,22 @@ const baseStyles = () => `
     .grid.columns-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
+    .grid.columns-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    .grid.columns-6 {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
     .energy-card-shell {
       display: block;
       width: 100%;
       min-width: 0;
       border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
-      border-radius: var(--ha-card-border-radius, 12px);
+      border-radius: var(--energy-dashboard-card-radius, 12px);
       background: var(--ha-card-background, var(--card-background-color));
       box-shadow: var(--ha-card-box-shadow, 0 1px 2px rgba(0, 0, 0, 0.08));
       overflow: hidden;
+      clip-path: inset(0 round var(--energy-dashboard-card-radius, 12px));
     }
     .energy-card-shell > * {
       display: block;
@@ -1115,12 +1169,18 @@ const baseStyles = () => `
       justify-content: center;
       width: 100%;
       margin-top: var(--energy-dashboard-gap, 12px);
+      padding: 8px 0;
+      position: sticky;
+      bottom: 0;
+      z-index: 5;
+      pointer-events: none;
     }
     .date-footer[hidden] {
       display: none;
     }
     .energy-date-shell {
       width: min(100%, 520px);
+      pointer-events: auto;
     }
     .energy-date-shell > * {
       width: 100%;
@@ -1129,7 +1189,9 @@ const baseStyles = () => `
     @media (max-width: 640px) {
       .grid.columns-2,
       .grid.columns-3,
-      .grid.columns-4 {
+      .grid.columns-4,
+      .grid.columns-5,
+      .grid.columns-6 {
         grid-template-columns: 1fr;
       }
     }
