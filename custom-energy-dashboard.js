@@ -283,16 +283,7 @@ const viewCards = (config, viewKey = currentViewKey(config)) => {
   const enabledCards = options.enabled_cards || config.enabled_cards;
   const enabled = enabledCards?.length ? new Set(enabledCards) : undefined;
   const cardOrder = options.card_order || config.card_order;
-  const cards = [...view.cards];
-
-  if (cardOrder?.length) {
-    const order = new Map(cardOrder.map((key, index) => [key, index]));
-    cards.sort((a, b) => {
-      const aIndex = order.has(a.key) ? order.get(a.key) : order.has(a.type) ? order.get(a.type) : 999;
-      const bIndex = order.has(b.key) ? order.get(b.key) : order.has(b.type) ? order.get(b.type) : 999;
-      return aIndex - bIndex;
-    });
-  }
+  const cards = orderedCards(view.cards, cardOrder);
 
   return cards.filter((card) => {
     if (!options.show_date_selection && card.type === "energy-date-selection") {
@@ -300,6 +291,26 @@ const viewCards = (config, viewKey = currentViewKey(config)) => {
     }
     return enabled ? enabled.has(card.key) || enabled.has(card.type) : !hidden.has(card.key) && !hidden.has(card.type);
   });
+};
+
+const orderedCards = (cards, cardOrder) => {
+  if (!cardOrder?.length) {
+    return [...cards];
+  }
+
+  const used = new Set();
+  const byKey = new Map(cards.flatMap((card) => [[card.key, card], [card.type, card]]));
+  const ordered = cardOrder
+    .map((key) => byKey.get(key))
+    .filter((card) => {
+      if (!card || used.has(card.key)) {
+        return false;
+      }
+      used.add(card.key);
+      return true;
+    });
+
+  return [...ordered, ...cards.filter((card) => !used.has(card.key))];
 };
 
 const hiddenCardsFor = (hiddenCards, viewKey) => {
@@ -629,9 +640,12 @@ class EditableEnergyDashboardEditor extends HTMLElement {
   }
 
   _setTabCardOrder(viewKey, key, value) {
+    const cards = DASHBOARD_VIEWS[viewKey]?.cards || DASHBOARD_VIEWS.electricity.cards;
     const tabOptions = clone(this._config.tab_options);
     const tab = clone(tabOptions[viewKey]);
-    const order = [...(tab.card_order || [])].filter((item) => item !== key);
+    const order = orderedCards(cards, tab.card_order)
+      .map((card) => card.key)
+      .filter((item) => item !== key);
     const position = Number(value);
 
     if (Number.isFinite(position) && position > 0) {
@@ -645,6 +659,30 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     }
 
     tabOptions[viewKey] = tab;
+    this._config = {
+      ...this._config,
+      tab_options: tabOptions,
+    };
+    this._emit();
+  }
+
+  _moveTabCard(viewKey, key, direction) {
+    const cards = DASHBOARD_VIEWS[viewKey]?.cards || DASHBOARD_VIEWS.electricity.cards;
+    const tabOptions = clone(this._config.tab_options);
+    const tab = clone(tabOptions[viewKey]);
+    const orderedKeys = orderedCards(cards, tab.card_order).map((card) => card.key);
+    const index = orderedKeys.indexOf(key);
+    const nextIndex = index + direction;
+
+    if (index < 0 || nextIndex < 0 || nextIndex >= orderedKeys.length) {
+      return;
+    }
+
+    const [moved] = orderedKeys.splice(index, 1);
+    orderedKeys.splice(nextIndex, 0, moved);
+    tab.card_order = orderedKeys;
+    tabOptions[viewKey] = tab;
+
     this._config = {
       ...this._config,
       tab_options: tabOptions,
@@ -781,6 +819,16 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       });
     });
 
+    this.shadowRoot.querySelectorAll("[data-tab-card-move]").forEach((element) => {
+      element.addEventListener("click", (event) => {
+        this._moveTabCard(
+          event.currentTarget.dataset.view,
+          event.currentTarget.dataset.tabCardMove,
+          Number(event.currentTarget.dataset.direction)
+        );
+      });
+    });
+
     this.shadowRoot.querySelectorAll("textarea").forEach((element) => {
       element.addEventListener("change", (event) => {
         this._parseRaw(event.target.value, event.target.dataset.key);
@@ -802,7 +850,8 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       ...hiddenCardsFor(this._config.hidden_cards, viewKey),
       ...hiddenCardsFor(this._config.tab_options?.[viewKey]?.hidden_cards, viewKey),
     ]);
-    const allCards = unique(cards.map((card) => card.key));
+    const orderedEditorCards = orderedCards(cards, rawTab.card_order);
+    const allCards = orderedEditorCards.map((card) => card.key);
 
     return `
       <fieldset>
@@ -894,9 +943,9 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       </fieldset>
       <fieldset>
         <legend>Cards and card layout in this Energy tab</legend>
-        ${allCards
-          .map((key) => {
-            const card = cards.find((candidate) => candidate.key === key);
+        ${orderedEditorCards
+          .map((card, index) => {
+            const key = card.key;
             const label = card.title || CARD_TYPES[card.type]?.label || card.type;
             const layout = String(cardLayout[key] || cardLayout[card.type] || "auto");
             const order = cardOrder.indexOf(key) + 1 || "";
@@ -918,6 +967,24 @@ class EditableEnergyDashboardEditor extends HTMLElement {
                   placeholder="-"
                   title="Card order"
                 >
+                <div class="move-buttons">
+                  <button
+                    data-view="${viewKey}"
+                    data-tab-card-move="${key}"
+                    data-direction="-1"
+                    type="button"
+                    title="Move up"
+                    ${index === 0 ? "disabled" : ""}
+                  >Up</button>
+                  <button
+                    data-view="${viewKey}"
+                    data-tab-card-move="${key}"
+                    data-direction="1"
+                    type="button"
+                    title="Move down"
+                    ${index === orderedEditorCards.length - 1 ? "disabled" : ""}
+                  >Down</button>
+                </div>
                 <select data-view="${viewKey}" data-tab-card-layout-key="${key}" title="Card width">
                   <option value="auto" ${layout === "auto" ? "selected" : ""}>Auto</option>
                   <option value="full" ${layout === "full" ? "selected" : ""}>Full width</option>
@@ -1058,7 +1125,7 @@ const editorStyles = () => `
     }
     .card-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 72px 132px;
+      grid-template-columns: minmax(0, 1fr) 64px 116px 132px;
       gap: 8px;
       align-items: center;
       margin: 0 0 12px;
@@ -1082,6 +1149,26 @@ const editorStyles = () => `
     }
     .card-row span {
       min-width: 0;
+    }
+    .move-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+    }
+    .move-buttons button {
+      min-width: 0;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      padding: 8px 4px;
+      background: var(--card-background-color);
+      color: var(--primary-text-color);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .move-buttons button:disabled {
+      cursor: default;
+      opacity: 0.45;
     }
     @media (max-width: 420px) {
       .card-row {

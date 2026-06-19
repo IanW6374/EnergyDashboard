@@ -221,8 +221,24 @@ tab_options:
 ```
 
 In the visual editor, choose an **Energy tab to edit**, then use each card row's
-order field and width selector. Empty order fields keep the default Home
-Assistant order after any explicitly ordered cards.
+Up/Down buttons, order field, and width selector. The editor saves a full
+`card_order` for the selected Energy tab.
+
+To put the date selector at the bottom of the Electricity tab, include `date`
+last in that tab's `card_order`:
+
+```yaml
+tab_options:
+  electricity:
+    card_order:
+      - distribution
+      - usage
+      - solar
+      - sources
+      - devices
+      - sankey
+      - date
+```
 
 ## Card Overrides
 
