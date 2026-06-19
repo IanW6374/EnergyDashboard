@@ -195,21 +195,34 @@ Supported layout values:
 - `min_card_width`: minimum card width in pixels for `auto` layout
 - `gap`: spacing between cards in pixels
 - `hidden_cards`: card keys or built-in card types to hide in that tab
-- `card_order`: optional list of card keys or card types to sort first
+- `card_order`: ordered list of card keys or card types to place first
 - `card_layout`: set a card key or type to `full` or a column span number
 
-Card layout examples:
+Card order and width example:
 
 ```yaml
 tab_options:
   electricity:
     columns: 3
+    card_order:
+      - distribution
+      - usage
+      - solar
+      - sources
+      - devices
+      - sankey
     card_layout:
       distribution: full
       usage: full
       solar: full
       sources: 2
+      devices: 2
+      sankey: full
 ```
+
+In the visual editor, choose an **Energy tab to edit**, then use each card row's
+order field and width selector. Empty order fields keep the default Home
+Assistant order after any explicitly ordered cards.
 
 ## Card Overrides
 

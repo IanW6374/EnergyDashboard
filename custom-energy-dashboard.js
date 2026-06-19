@@ -628,6 +628,30 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     this._emit();
   }
 
+  _setTabCardOrder(viewKey, key, value) {
+    const tabOptions = clone(this._config.tab_options);
+    const tab = clone(tabOptions[viewKey]);
+    const order = [...(tab.card_order || [])].filter((item) => item !== key);
+    const position = Number(value);
+
+    if (Number.isFinite(position) && position > 0) {
+      order.splice(Math.min(position - 1, order.length), 0, key);
+    }
+
+    if (order.length) {
+      tab.card_order = order;
+    } else {
+      delete tab.card_order;
+    }
+
+    tabOptions[viewKey] = tab;
+    this._config = {
+      ...this._config,
+      tab_options: tabOptions,
+    };
+    this._emit();
+  }
+
   _emit() {
     const config = clone(this._config);
     config.type = "custom:editable-energy-dashboard";
@@ -747,6 +771,16 @@ class EditableEnergyDashboardEditor extends HTMLElement {
       });
     });
 
+    this.shadowRoot.querySelectorAll("[data-tab-card-order-key]").forEach((element) => {
+      element.addEventListener("change", (event) => {
+        this._setTabCardOrder(
+          event.target.dataset.view,
+          event.target.dataset.tabCardOrderKey,
+          event.target.value
+        );
+      });
+    });
+
     this.shadowRoot.querySelectorAll("textarea").forEach((element) => {
       element.addEventListener("change", (event) => {
         this._parseRaw(event.target.value, event.target.dataset.key);
@@ -763,6 +797,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     const options = tabConfig(this._config, viewKey);
     const rawTab = clone(this._config.tab_options?.[viewKey]);
     const cardLayout = clone(rawTab.card_layout);
+    const cardOrder = rawTab.card_order || [];
     const hiddenCards = new Set([
       ...hiddenCardsFor(this._config.hidden_cards, viewKey),
       ...hiddenCardsFor(this._config.tab_options?.[viewKey]?.hidden_cards, viewKey),
@@ -864,6 +899,7 @@ class EditableEnergyDashboardEditor extends HTMLElement {
             const card = cards.find((candidate) => candidate.key === key);
             const label = card.title || CARD_TYPES[card.type]?.label || card.type;
             const layout = String(cardLayout[key] || cardLayout[card.type] || "auto");
+            const order = cardOrder.indexOf(key) + 1 || "";
             return `
               <div class="card-row">
                 <label class="check">
@@ -872,6 +908,16 @@ class EditableEnergyDashboardEditor extends HTMLElement {
                   }>
                   <span>${escapeHtml(label)}</span>
                 </label>
+                <input
+                  data-view="${viewKey}"
+                  data-tab-card-order-key="${key}"
+                  type="number"
+                  min="1"
+                  max="${allCards.length}"
+                  value="${escapeAttr(order)}"
+                  placeholder="-"
+                  title="Card order"
+                >
                 <select data-view="${viewKey}" data-tab-card-layout-key="${key}" title="Card width">
                   <option value="auto" ${layout === "auto" ? "selected" : ""}>Auto</option>
                   <option value="full" ${layout === "full" ? "selected" : ""}>Full width</option>
@@ -1012,7 +1058,7 @@ const editorStyles = () => `
     }
     .card-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 132px;
+      grid-template-columns: minmax(0, 1fr) 72px 132px;
       gap: 8px;
       align-items: center;
       margin: 0 0 12px;
@@ -1022,6 +1068,17 @@ const editorStyles = () => `
     }
     .card-row select {
       margin: 0;
+    }
+    .card-row input[type="number"] {
+      box-sizing: border-box;
+      width: 100%;
+      margin: 0;
+      padding: 8px;
+      border: 1px solid var(--divider-color);
+      border-radius: 4px;
+      background: var(--card-background-color);
+      color: var(--primary-text-color);
+      font: inherit;
     }
     .card-row span {
       min-width: 0;
