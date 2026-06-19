@@ -141,6 +141,9 @@ YAML-mode dashboards must be edited in YAML.
 - `water`
 - `now`
 
+The `overview`, `electricity`, `gas`, and `water` Energy tabs can include the
+date selector when `show_date_selection` is enabled for that tab.
+
 ## Dashboard Options
 
 - Home Assistant dashboard view setup
@@ -198,6 +201,9 @@ Supported layout values:
 - `hidden_cards`: card keys or built-in card types to hide in that tab
 - `card_order`: ordered list of card keys or card types to place first
 - `card_layout`: set a card key or type to `full` or a column span number
+
+Each built-in Energy card is wrapped in a dashboard shell so it keeps a visible
+outline and stays fixed in the configured grid position.
 
 Card order and width example:
 

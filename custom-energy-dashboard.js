@@ -85,6 +85,7 @@ const DASHBOARD_VIEWS = {
   overview: {
     label: "Overview",
     cards: [
+      { key: "date", type: "energy-date-selection" },
       { key: "distribution", type: "energy-distribution", title: "Energy distribution" },
       {
         key: "sources",
@@ -359,6 +360,27 @@ const applyCardPosition = (element, index) => {
   element.style.order = String(index);
 };
 
+const createCardShell = (element, card, layout, index) => {
+  const shell = document.createElement("div");
+  shell.className = "energy-card-shell";
+  shell.dataset.cardKey = card.key;
+  shell.dataset.cardType = card.type;
+  shell._energyCard = element;
+
+  applyCardLayout(shell, layout);
+  applyCardPosition(shell, index);
+
+  element.style.removeProperty("grid-column");
+  element.style.removeProperty("order");
+  element.style.position = "static";
+  element.style.inset = "auto";
+  element.style.width = "100%";
+  element.style.maxWidth = "none";
+  shell.replaceChildren(element);
+
+  return shell;
+};
+
 const renderError = (mount, message) => {
   mount.innerHTML = `
     <ha-card>
@@ -403,8 +425,10 @@ class EditableEnergyDashboard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._cards.forEach((card) => {
-      card.hass = hass;
+    this._cards.forEach((cardShell) => {
+      if (cardShell._energyCard) {
+        cardShell._energyCard.hass = hass;
+      }
     });
   }
 
@@ -463,16 +487,18 @@ class EditableEnergyDashboard extends HTMLElement {
           const cardConfig = dashboardCardConfig(card, this._config, viewKey);
           try {
             const element = await this._helpers.createCardElement(cardConfig);
-            applyCardLayout(element, cardLayoutFor(this._config, viewKey, card));
-            applyCardPosition(element, index);
             if (this._hass) {
               element.hass = this._hass;
             }
-            return element;
+            return createCardShell(
+              element,
+              card,
+              cardLayoutFor(this._config, viewKey, card),
+              index
+            );
           } catch (error) {
             const errorCard = createErrorCard(`Unable to load ${cardConfig.type}: ${error.message}`);
-            applyCardPosition(errorCard, index);
-            return errorCard;
+            return createCardShell(errorCard, card, cardLayoutFor(this._config, viewKey, card), index);
           }
         })
       );
@@ -1048,6 +1074,29 @@ const baseStyles = () => `
     }
     .grid.columns-4 {
       grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .energy-card-shell {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      border: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color));
+      border-radius: var(--ha-card-border-radius, 12px);
+      background: var(--ha-card-background, var(--card-background-color));
+      box-shadow: var(--ha-card-box-shadow, none);
+      overflow: hidden;
+    }
+    .energy-card-shell > * {
+      display: block;
+      width: 100%;
+      max-width: none;
+      position: static !important;
+      inset: auto !important;
+      margin: 0;
+    }
+    .energy-card-shell ha-card {
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
     }
     @media (max-width: 640px) {
       .grid.columns-2,
