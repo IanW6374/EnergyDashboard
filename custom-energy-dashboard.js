@@ -657,12 +657,13 @@ const historyTime = (row) => {
 
 const historyValue = (row) => Number(row.state ?? row.s);
 
-const timeLabel = (date) =>
-  date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
+const dateTickLabel = (date) =>
+  date.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
   });
+
+const timeTickLabel = (date) => `${date.getHours()}:00`;
 
 class EditableEnergyBatterySocCard extends HTMLElement {
   constructor() {
@@ -747,7 +748,6 @@ class EditableEnergyBatterySocCard extends HTMLElement {
         <div class="header">
           <div>
             <div class="title">${escapeHtml(title)}</div>
-            <div class="period">${escapeHtml(localDateString(range.start))}</div>
           </div>
           <div class="value">${Number.isFinite(currentValue) ? `${currentValue.toFixed(0)}%` : ""}</div>
         </div>
@@ -772,12 +772,22 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     }
 
     const width = 720;
-    const height = 280;
-    const margin = {top: 16, right: 20, bottom: 44, left: 56};
+    const height = 250;
+    const margin = {top: 18, right: 8, bottom: 34, left: 44};
     const start = range.start.getTime();
     const end = range.end.getTime();
-    const min = 0;
-    const max = 100;
+    const values = sortedPoints.map((point) => point.value);
+    const rawMin = Math.min(...values);
+    const rawMax = Math.max(...values);
+    let min = Math.max(0, Math.floor(rawMin / 5) * 5);
+    let max = Math.min(100, Math.ceil(rawMax / 5) * 5);
+    if (max - min < 10) {
+      min = Math.max(0, min - 5);
+      max = Math.min(100, max + 5);
+    }
+    if (max === min) {
+      max = Math.min(100, min + 10);
+    }
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
     const clampX = (value) => Math.max(margin.left, Math.min(width - margin.right, value));
@@ -792,12 +802,11 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     const linePath = linePoints
       .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
       .join(" ");
-    const areaPath =
-      linePoints.length > 1
-        ? `${linePath} L ${linePoints[linePoints.length - 1].x.toFixed(1)} ${height - margin.bottom} L ${linePoints[0].x.toFixed(1)} ${height - margin.bottom} Z`
-        : "";
-    const yTicks = [100, 75, 50, 25, 0];
-    const xTicks = [0, 4, 8, 12, 16, 20, 24].map((hour) => {
+    const yTicks = [];
+    for (let tick = max; tick >= min; tick -= 5) {
+      yTicks.push(tick);
+    }
+    const xTicks = [0, 4, 8, 12, 16, 20].map((hour) => {
       const date = new Date(range.start);
       date.setHours(hour, 0, 0, 0);
       return date;
@@ -805,6 +814,7 @@ class EditableEnergyBatterySocCard extends HTMLElement {
 
     return `
       <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this._config.title || "Battery SoC")}">
+        <text class="unit" x="${margin.left}" y="${margin.top - 5}">%</text>
         ${yTicks
           .map(
             (tick) => `
@@ -815,19 +825,15 @@ class EditableEnergyBatterySocCard extends HTMLElement {
           .join("")}
         ${xTicks
           .map(
-            (tick) => `
+            (tick, index) => `
               <line class="grid-line vertical" x1="${x(tick.getTime())}" y1="${margin.top}" x2="${x(tick.getTime())}" y2="${height - margin.bottom}"></line>
-              <text class="tick x-tick" x="${x(tick.getTime())}" y="${height - 14}" text-anchor="middle">${timeLabel(tick)}</text>
+              <text class="tick x-tick ${index === 0 ? "date-tick" : ""}" x="${x(tick.getTime())}" y="${height - 11}" text-anchor="${index === 0 ? "start" : "middle"}">${index === 0 ? dateTickLabel(tick) : timeTickLabel(tick)}</text>
             `
           )
           .join("")}
         <line class="axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"></line>
         <line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}"></line>
-        ${areaPath ? `<path class="area" d="${areaPath}"></path>` : ""}
         <path class="line" d="${linePath}"></path>
-        ${linePoints
-          .map((point) => `<circle class="point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4"></circle>`)
-          .join("")}
       </svg>
     `;
   }
@@ -1823,7 +1829,7 @@ const batterySocStyles = () => `
       align-items: flex-start;
       justify-content: space-between;
       gap: 16px;
-      padding: 16px 16px 0;
+      padding: 16px 16px 4px;
     }
     .title {
       font-size: 20px;
@@ -1848,43 +1854,47 @@ const batterySocStyles = () => `
     svg {
       display: block;
       width: 100%;
-      min-height: 280px;
-      padding: 8px 12px 16px;
+      min-height: 250px;
+      padding: 0 12px 14px;
       box-sizing: border-box;
     }
     .axis,
     .grid-line {
-      stroke: var(--divider-color, rgba(127, 127, 127, 0.32));
+      stroke: var(--divider-color, rgba(127, 127, 127, 0.28));
       stroke-width: 1;
+    }
+    .axis {
+      stroke-width: 1.2;
     }
     .grid-line {
       opacity: 0.7;
     }
     .grid-line.vertical {
-      opacity: 0.35;
-    }
-    .area {
-      fill: var(--primary-color);
-      opacity: 0.12;
+      opacity: 0.5;
     }
     .line {
       fill: none;
-      stroke: var(--primary-color);
-      stroke-width: 3;
+      stroke: var(--energy-dashboard-battery-line-color, #4f73df);
+      stroke-width: 1.8;
       stroke-linejoin: round;
       stroke-linecap: round;
-    }
-    .point {
-      fill: var(--primary-color);
-      stroke: var(--ha-card-background, var(--card-background-color));
-      stroke-width: 2;
     }
     .tick {
       fill: var(--secondary-text-color);
       font-size: 11px;
     }
+    .unit {
+      fill: var(--secondary-text-color);
+      font-size: 11px;
+      font-weight: 600;
+    }
     .x-tick {
       font-size: 10px;
+    }
+    .date-tick {
+      font-size: 11px;
+      font-weight: 600;
+      fill: var(--primary-text-color);
     }
     .message {
       color: var(--secondary-text-color);
