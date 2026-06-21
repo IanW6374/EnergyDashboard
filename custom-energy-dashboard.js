@@ -3,6 +3,14 @@ const CARD_TYPES = {
     label: "History graph",
     size: 4,
   },
+  "custom:editable-energy-battery-soc-card": {
+    label: "Battery SoC date graph",
+    size: 4,
+  },
+  "custom:power-flow-card-plus": {
+    label: "Power Flow Card Plus",
+    size: 4,
+  },
   "energy-distribution": {
     label: "Energy distribution",
     size: 3,
@@ -114,6 +122,7 @@ const DASHBOARD_VIEWS = {
     cards: [
       { key: "date", type: "energy-date-selection" },
       { key: "distribution", type: "energy-distribution", title: "Energy distribution" },
+      { key: "power_flow_plus", type: "custom:power-flow-card-plus", title: "Power flow" },
       { key: "grid_balance", type: "energy-grid-balance" },
       { key: "grid_neutrality", type: "energy-grid-neutrality-gauge" },
       { key: "solar_consumed", type: "energy-solar-consumed-gauge" },
@@ -124,9 +133,8 @@ const DASHBOARD_VIEWS = {
       { key: "solar", type: "energy-solar-graph", title: "Solar production" },
       {
         key: "battery_soc",
-        type: "history-graph",
+        type: "custom:editable-energy-battery-soc-card",
         title: "Battery SoC",
-        hours_to_show: 24,
       },
       {
         key: "sources",
@@ -289,17 +297,20 @@ const applyTypeOptions = (result, config, cardType) => {
 };
 
 const applySpecialCardOptions = (result, config, card) => {
-  if (card.key !== "battery_soc") {
-    return;
+  if (card.key === "battery_soc") {
+    const entity = config.battery_soc_entity || config.battery_soc_sensor;
+    const entities = config.battery_soc_entities || (entity ? [entity] : undefined);
+    if (entities?.length && !result.entities) {
+      result.entities = entities;
+    }
+    result.title = result.title || "Battery SoC";
+    result.hours_to_show = result.hours_to_show || config.battery_soc_hours_to_show || 24;
   }
 
-  const entity = config.battery_soc_entity || config.battery_soc_sensor;
-  const entities = config.battery_soc_entities || (entity ? [entity] : undefined);
-  if (entities?.length && !result.entities) {
-    result.entities = entities;
+  if (card.key === "power_flow_plus") {
+    Object.assign(result, clone(config.power_flow_card_plus || config.power_flow_plus));
+    result.title = result.title || "Power flow";
   }
-  result.title = result.title || "Battery SoC";
-  result.hours_to_show = result.hours_to_show || config.battery_soc_hours_to_show || 24;
 };
 
 const viewCards = (config, viewKey = currentViewKey(config)) => {
@@ -321,6 +332,9 @@ const viewCards = (config, viewKey = currentViewKey(config)) => {
     if (card.key === "battery_soc" && !hasBatterySocConfig(config, viewKey)) {
       return false;
     }
+    if (card.key === "power_flow_plus" && !hasPowerFlowPlusConfig(config, viewKey)) {
+      return false;
+    }
     return enabled ? enabled.has(card.key) || enabled.has(card.type) : !hidden.has(card.key) && !hidden.has(card.type);
   });
 };
@@ -329,11 +343,23 @@ const hasBatterySocConfig = (config, viewKey) => {
   const options = tabConfig(config, viewKey);
   const cardOptions = tabCardOptions(config, viewKey);
   return Boolean(
-    options.battery_soc_entity ||
+      options.battery_soc_entity ||
       options.battery_soc_sensor ||
       options.battery_soc_entities?.length ||
       cardOptions.battery_soc?.entities?.length ||
-      cardOptions["history-graph"]?.entities?.length
+      cardOptions["history-graph"]?.entities?.length ||
+      cardOptions["custom:editable-energy-battery-soc-card"]?.entities?.length
+  );
+};
+
+const hasPowerFlowPlusConfig = (config, viewKey) => {
+  const options = tabConfig(config, viewKey);
+  const cardOptions = tabCardOptions(config, viewKey);
+  return Boolean(
+    options.power_flow_card_plus ||
+      options.power_flow_plus ||
+      cardOptions.power_flow_plus ||
+      cardOptions["custom:power-flow-card-plus"]
   );
 };
 
@@ -550,6 +576,213 @@ const createErrorCard = (message) => {
   card.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
   return card;
 };
+
+const localDateString = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const localDate = (value) => {
+  if (!value) {
+    return undefined;
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const addPeriod = (date, period) => {
+  const result = new Date(date);
+  if (period === "week") {
+    result.setDate(result.getDate() + 7);
+  } else if (period === "month") {
+    result.setMonth(result.getMonth() + 1);
+  } else if (period === "year") {
+    result.setFullYear(result.getFullYear() + 1);
+  } else {
+    result.setDate(result.getDate() + 1);
+  }
+  return result;
+};
+
+const energyDateRange = () => {
+  const params = new URLSearchParams(window.location.search);
+  const start =
+    localDate(params.get("start")) ||
+    localDate(params.get("start_date")) ||
+    localDate(params.get("from")) ||
+    localDate(params.get("date")) ||
+    localDate(params.get("day")) ||
+    new Date();
+  const rangeStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const end =
+    localDate(params.get("end")) ||
+    localDate(params.get("end_date")) ||
+    localDate(params.get("to")) ||
+    addPeriod(rangeStart, params.get("period") || "day");
+  return {
+    start: rangeStart,
+    end,
+    key: `${localDateString(rangeStart)}:${localDateString(end)}:${params.get("period") || "day"}`,
+  };
+};
+
+const flattenHistoryRows = (history) => {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history.flatMap((item) => (Array.isArray(item) ? item : [item])).filter(Boolean);
+};
+
+const historyTime = (row) => {
+  const value = row.last_changed ?? row.last_updated ?? row.last_reported ?? row.lu;
+  if (typeof value === "number") {
+    return value < 100000000000 ? value * 1000 : value;
+  }
+  return new Date(value).getTime();
+};
+
+const historyValue = (row) => Number(row.state ?? row.s);
+
+class EditableEnergyBatterySocCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._rangeKey = "";
+    this._historyKey = "";
+    this._points = [];
+    this._loading = false;
+  }
+
+  setConfig(config) {
+    this._config = config || {};
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._loadHistory();
+  }
+
+  async _loadHistory() {
+    const entity = this._entity();
+    if (!this._hass || !entity || this._loading) {
+      this._render();
+      return;
+    }
+
+    const range = energyDateRange();
+    const historyKey = `${entity}:${range.key}`;
+    if (historyKey === this._historyKey) {
+      return;
+    }
+
+    this._loading = true;
+    this._rangeKey = range.key;
+    this._historyKey = historyKey;
+    this._render();
+
+    try {
+      const history = await this._hass.callWS({
+        type: "history/history_during_period",
+        start_time: range.start.toISOString(),
+        end_time: range.end.toISOString(),
+        entity_ids: [entity],
+        minimal_response: true,
+        no_attributes: true,
+        significant_changes_only: false,
+      });
+      this._points = flattenHistoryRows(history)
+        .map((row) => ({
+          time: historyTime(row),
+          value: historyValue(row),
+        }))
+        .filter((row) => Number.isFinite(row.time) && Number.isFinite(row.value));
+      this._error = "";
+    } catch (error) {
+      this._error = error.message;
+      this._points = [];
+    } finally {
+      this._loading = false;
+      this._render();
+    }
+  }
+
+  _entity() {
+    return this._config.entity || this._config.entities?.[0];
+  }
+
+  _render() {
+    const entity = this._entity();
+    const title = this._config.title || "Battery SoC";
+    const range = energyDateRange();
+    const state = entity ? this._hass?.states?.[entity] : undefined;
+    const currentValue = state?.state && state.state !== "unknown" ? Number(state.state) : undefined;
+    const points = this._points.length
+      ? this._points
+      : Number.isFinite(currentValue)
+        ? [{ time: Date.now(), value: currentValue }]
+        : [];
+    const chart = this._chart(points, range);
+
+    this.shadowRoot.innerHTML = `
+      ${batterySocStyles()}
+      <ha-card>
+        <div class="header">
+          <div>
+            <div class="title">${escapeHtml(title)}</div>
+            <div class="period">${escapeHtml(localDateString(range.start))}</div>
+          </div>
+          <div class="value">${Number.isFinite(currentValue) ? `${currentValue.toFixed(0)}%` : ""}</div>
+        </div>
+        ${
+          entity
+            ? chart
+            : `<div class="message">Set battery_soc_entity to show the date-period graph.</div>`
+        }
+        ${this._loading ? `<div class="message">Loading...</div>` : ""}
+        ${this._error ? `<div class="message error">${escapeHtml(this._error)}</div>` : ""}
+      </ha-card>
+    `;
+  }
+
+  _chart(points, range) {
+    if (!points.length) {
+      return `<div class="message">No Battery SoC history for this date period.</div>`;
+    }
+
+    const width = 640;
+    const height = 240;
+    const padding = 32;
+    const start = range.start.getTime();
+    const end = range.end.getTime();
+    const min = 0;
+    const max = 100;
+    const x = (time) => padding + ((time - start) / Math.max(end - start, 1)) * (width - padding * 2);
+    const y = (value) => height - padding - ((value - min) / (max - min)) * (height - padding * 2);
+    const path = points
+      .map((point) => `${Math.max(padding, Math.min(width - padding, x(point.time))).toFixed(1)},${Math.max(padding, Math.min(height - padding, y(point.value))).toFixed(1)}`)
+      .join(" ");
+
+    return `
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this._config.title || "Battery SoC")}">
+        <line class="axis" x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
+        <line class="axis" x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}"></line>
+        <line class="grid-line" x1="${padding}" y1="${y(50)}" x2="${width - padding}" y2="${y(50)}"></line>
+        <text class="tick" x="${padding - 8}" y="${y(100) + 4}" text-anchor="end">100%</text>
+        <text class="tick" x="${padding - 8}" y="${y(50) + 4}" text-anchor="end">50%</text>
+        <text class="tick" x="${padding - 8}" y="${y(0) + 4}" text-anchor="end">0%</text>
+        <polyline class="line" points="${path}"></polyline>
+      </svg>
+    `;
+  }
+}
 
 class EditableEnergyDashboard extends HTMLElement {
   static async getConfigElement() {
@@ -1476,7 +1709,21 @@ const baseStyles = () => `
     }
     @media (max-width: 870px) {
       .tabs.top-tabs {
-        left: var(--energy-dashboard-tabs-mobile-left, 0px);
+        left: var(--energy-dashboard-tabs-mobile-left, 48px);
+        right: var(--energy-dashboard-tabs-mobile-right, 0px);
+        padding: 0 4px;
+        scrollbar-width: none;
+      }
+      .tabs.top-tabs::-webkit-scrollbar {
+        display: none;
+      }
+      .tabs.top-tabs button {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 0 6px;
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
     .tabs button {
@@ -1510,6 +1757,77 @@ const baseStyles = () => `
     .error {
       color: var(--error-color);
       padding: 16px;
+    }
+  </style>
+`;
+
+const batterySocStyles = () => `
+  <style>
+    ha-card {
+      display: block;
+      overflow: hidden;
+      background: var(--ha-card-background, var(--card-background-color));
+      color: var(--primary-text-color);
+    }
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 16px 0;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 400;
+      line-height: 28px;
+    }
+    .period {
+      color: var(--secondary-text-color);
+      font-size: 12px;
+      line-height: 18px;
+      margin-top: 2px;
+    }
+    .value {
+      border: 1px solid var(--ha-card-border-color, var(--divider-color, rgba(127, 127, 127, 0.32)));
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 20px;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
+    svg {
+      display: block;
+      width: 100%;
+      min-height: 220px;
+      padding: 8px 12px 12px;
+      box-sizing: border-box;
+    }
+    .axis,
+    .grid-line {
+      stroke: var(--divider-color, rgba(127, 127, 127, 0.32));
+      stroke-width: 1;
+    }
+    .grid-line {
+      opacity: 0.7;
+    }
+    .line {
+      fill: none;
+      stroke: var(--primary-color);
+      stroke-width: 3;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+    .tick {
+      fill: var(--secondary-text-color);
+      font-size: 11px;
+    }
+    .message {
+      color: var(--secondary-text-color);
+      padding: 16px;
+    }
+    .error {
+      color: var(--error-color);
     }
   </style>
 `;
@@ -1632,6 +1950,7 @@ const editorStyles = () => `
 
 customElements.define("editable-energy-dashboard", EditableEnergyDashboard);
 customElements.define("editable-energy-dashboard-editor", EditableEnergyDashboardEditor);
+customElements.define("editable-energy-battery-soc-card", EditableEnergyBatterySocCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({

@@ -132,13 +132,15 @@ buttons.
 The top tab strip can be tuned with YAML if your Home Assistant theme, sidebar,
 or toolbar width needs a different offset. Numeric values are treated as pixels.
 On desktop, the default left offset is Home Assistant's drawer width, falling
-back to `256px`. On narrower screens, the default mobile left offset is `0px`.
+back to `256px`. On narrower screens, the default mobile left offset is `48px`
+so the tab strip does not cover Home Assistant's menu icon.
 The default right offset is `176px` so the tab strip does not cover Home
 Assistant's toolbar action icons.
 
 - `tabs_top`: distance from the top of the browser window
 - `tabs_left`: distance from the left edge, useful with a sidebar
 - `tabs_mobile_left`: distance from the left edge on narrower screens
+- `tabs_mobile_right`: distance from the right edge on narrower screens
 - `tabs_right`: distance from the right edge
 - `tabs_height`: reserved height for the tab strip
 
@@ -188,7 +190,8 @@ to keep the footer compact.
 - Show or hide individual Energy tabs
 - Per-tab badges
 - Show or hide the date selection card
-- Battery SoC history card in the Electricity tab
+- Battery SoC date-period graph in the Electricity tab
+- Optional Power Flow Card Plus card in the Electricity tab
 - Energy collection key
 - Link to Energy dashboard, for `energy-distribution`
 - Per-tab column layout
@@ -245,6 +248,7 @@ Supported layout values:
 - `sidebar_columns`: number of columns inside the sidebar, usually `1` or `2`
 - `badges`: entity/value badges to show at the top of the Energy tab
 - `battery_soc_entity`: battery state-of-charge percentage entity for the Electricity tab's `battery_soc` card
+- `power_flow_card_plus`: config for `custom:power-flow-card-plus` in the Electricity tab
 
 Each non-date built-in Energy card is wrapped in a dashboard shell so it keeps
 a visible rounded outline and stays fixed in the configured grid position.
@@ -347,7 +351,6 @@ Electricity badges and Battery SoC example:
 tab_options:
   electricity:
     battery_soc_entity: sensor.home_battery_state_of_charge
-    battery_soc_hours_to_show: 24
     badges:
       - entity: sensor.home_battery_state_of_charge
         name: Battery
@@ -364,10 +367,39 @@ tab_options:
       battery_soc: full
 ```
 
-The Battery SoC card is part of the Electricity Energy tab and uses Home
-Assistant's built-in `history-graph` card. Add `battery_soc` under
-`tab_options.electricity.card_order` or `tab_options.electricity.card_layout`
-when you want to place it.
+The Battery SoC card is part of the Electricity Energy tab and uses the date
+range selected by the Energy date selector instead of a rolling window. Add
+`battery_soc` under `tab_options.electricity.card_order` or
+`tab_options.electricity.card_layout` when you want to place it.
+
+Power Flow Card Plus example:
+
+```yaml
+tab_options:
+  electricity:
+    power_flow_card_plus:
+      entities:
+        grid:
+          entity: sensor.grid_power
+        solar:
+          entity: sensor.solar_power
+        battery:
+          entity: sensor.battery_power
+          state_of_charge: sensor.home_battery_state_of_charge
+        home:
+          entity: sensor.home_power
+    card_order:
+      - power_flow_plus
+      - distribution
+      - usage
+    card_layout:
+      power_flow_plus: full
+```
+
+Power Flow Card Plus must also be installed and added as a Home Assistant
+frontend resource. With HACS, use the resource
+`/hacsfiles/power-flow-card-plus/power-flow-card-plus.js`; with a manual
+install, use `/local/power-flow-card-plus.js`.
 
 In the visual editor, choose an **Energy tab to edit**, then use each card row's
 Up/Down buttons, order field, and width selector. The editor saves a full
