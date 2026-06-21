@@ -633,10 +633,18 @@ const energyDateRange = () => {
 };
 
 const flattenHistoryRows = (history) => {
-  if (!Array.isArray(history)) {
+  if (!history) {
     return [];
   }
-  return history.flatMap((item) => (Array.isArray(item) ? item : [item])).filter(Boolean);
+  if (Array.isArray(history)) {
+    return history.flatMap((item) => (Array.isArray(item) ? item : [item])).filter(Boolean);
+  }
+  if (typeof history === "object") {
+    return Object.values(history)
+      .flatMap((item) => (Array.isArray(item) ? item : [item]))
+      .filter(Boolean);
+  }
+  return [];
 };
 
 const historyTime = (row) => {
@@ -701,7 +709,7 @@ class EditableEnergyBatterySocCard extends HTMLElement {
         start_time: range.start.toISOString(),
         end_time: range.end.toISOString(),
         entity_ids: [entity],
-        minimal_response: true,
+        minimal_response: false,
         no_attributes: true,
         significant_changes_only: false,
       });
@@ -731,12 +739,7 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     const range = energyDateRange();
     const state = entity ? this._hass?.states?.[entity] : undefined;
     const currentValue = state?.state && state.state !== "unknown" ? Number(state.state) : undefined;
-    const points = this._points.length
-      ? this._points
-      : Number.isFinite(currentValue)
-        ? [{ time: Date.now(), value: currentValue }]
-        : [];
-    const chart = this._chart(points, range);
+    const chart = this._chart(this._points, range);
 
     this.shadowRoot.innerHTML = `
       ${batterySocStyles()}
@@ -765,7 +768,7 @@ class EditableEnergyBatterySocCard extends HTMLElement {
       .sort((a, b) => a.time - b.time);
 
     if (!sortedPoints.length) {
-      return `<div class="message">No Battery SoC history for this date period.</div>`;
+      return `<div class="message">No Battery SoC recorder history found between 00:00 and 23:59 for this date.</div>`;
     }
 
     const width = 720;
