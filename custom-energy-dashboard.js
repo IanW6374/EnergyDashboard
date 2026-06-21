@@ -649,6 +649,13 @@ const historyTime = (row) => {
 
 const historyValue = (row) => Number(row.state ?? row.s);
 
+const timeLabel = (date) =>
+  date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
 class EditableEnergyBatterySocCard extends HTMLElement {
   constructor() {
     super();
@@ -753,32 +760,71 @@ class EditableEnergyBatterySocCard extends HTMLElement {
   }
 
   _chart(points, range) {
-    if (!points.length) {
+    const sortedPoints = points
+      .filter((point) => point.time >= range.start.getTime() && point.time <= range.end.getTime())
+      .sort((a, b) => a.time - b.time);
+
+    if (!sortedPoints.length) {
       return `<div class="message">No Battery SoC history for this date period.</div>`;
     }
 
-    const width = 640;
-    const height = 240;
-    const padding = 32;
+    const width = 720;
+    const height = 280;
+    const margin = {top: 16, right: 20, bottom: 44, left: 56};
     const start = range.start.getTime();
     const end = range.end.getTime();
     const min = 0;
     const max = 100;
-    const x = (time) => padding + ((time - start) / Math.max(end - start, 1)) * (width - padding * 2);
-    const y = (value) => height - padding - ((value - min) / (max - min)) * (height - padding * 2);
-    const path = points
-      .map((point) => `${Math.max(padding, Math.min(width - padding, x(point.time))).toFixed(1)},${Math.max(padding, Math.min(height - padding, y(point.value))).toFixed(1)}`)
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    const clampX = (value) => Math.max(margin.left, Math.min(width - margin.right, value));
+    const clampY = (value) => Math.max(margin.top, Math.min(height - margin.bottom, value));
+    const x = (time) => margin.left + ((time - start) / Math.max(end - start, 1)) * plotWidth;
+    const y = (value) => height - margin.bottom - ((value - min) / (max - min)) * plotHeight;
+    const linePoints = sortedPoints.map((point) => ({
+      x: clampX(x(point.time)),
+      y: clampY(y(point.value)),
+      value: point.value,
+    }));
+    const linePath = linePoints
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
       .join(" ");
+    const areaPath =
+      linePoints.length > 1
+        ? `${linePath} L ${linePoints[linePoints.length - 1].x.toFixed(1)} ${height - margin.bottom} L ${linePoints[0].x.toFixed(1)} ${height - margin.bottom} Z`
+        : "";
+    const yTicks = [100, 75, 50, 25, 0];
+    const xTicks = [0, 4, 8, 12, 16, 20, 24].map((hour) => {
+      const date = new Date(range.start);
+      date.setHours(hour, 0, 0, 0);
+      return date;
+    });
 
     return `
       <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeAttr(this._config.title || "Battery SoC")}">
-        <line class="axis" x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}"></line>
-        <line class="axis" x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}"></line>
-        <line class="grid-line" x1="${padding}" y1="${y(50)}" x2="${width - padding}" y2="${y(50)}"></line>
-        <text class="tick" x="${padding - 8}" y="${y(100) + 4}" text-anchor="end">100%</text>
-        <text class="tick" x="${padding - 8}" y="${y(50) + 4}" text-anchor="end">50%</text>
-        <text class="tick" x="${padding - 8}" y="${y(0) + 4}" text-anchor="end">0%</text>
-        <polyline class="line" points="${path}"></polyline>
+        ${yTicks
+          .map(
+            (tick) => `
+              <line class="grid-line" x1="${margin.left}" y1="${y(tick)}" x2="${width - margin.right}" y2="${y(tick)}"></line>
+              <text class="tick y-tick" x="${margin.left - 10}" y="${y(tick) + 4}" text-anchor="end">${tick}%</text>
+            `
+          )
+          .join("")}
+        ${xTicks
+          .map(
+            (tick) => `
+              <line class="grid-line vertical" x1="${x(tick.getTime())}" y1="${margin.top}" x2="${x(tick.getTime())}" y2="${height - margin.bottom}"></line>
+              <text class="tick x-tick" x="${x(tick.getTime())}" y="${height - 14}" text-anchor="middle">${timeLabel(tick)}</text>
+            `
+          )
+          .join("")}
+        <line class="axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"></line>
+        <line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}"></line>
+        ${areaPath ? `<path class="area" d="${areaPath}"></path>` : ""}
+        <path class="line" d="${linePath}"></path>
+        ${linePoints
+          .map((point) => `<circle class="point" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4"></circle>`)
+          .join("")}
       </svg>
     `;
   }
@@ -1799,8 +1845,8 @@ const batterySocStyles = () => `
     svg {
       display: block;
       width: 100%;
-      min-height: 220px;
-      padding: 8px 12px 12px;
+      min-height: 280px;
+      padding: 8px 12px 16px;
       box-sizing: border-box;
     }
     .axis,
@@ -1811,6 +1857,13 @@ const batterySocStyles = () => `
     .grid-line {
       opacity: 0.7;
     }
+    .grid-line.vertical {
+      opacity: 0.35;
+    }
+    .area {
+      fill: var(--primary-color);
+      opacity: 0.12;
+    }
     .line {
       fill: none;
       stroke: var(--primary-color);
@@ -1818,9 +1871,17 @@ const batterySocStyles = () => `
       stroke-linejoin: round;
       stroke-linecap: round;
     }
+    .point {
+      fill: var(--primary-color);
+      stroke: var(--ha-card-background, var(--card-background-color));
+      stroke-width: 2;
+    }
     .tick {
       fill: var(--secondary-text-color);
       font-size: 11px;
+    }
+    .x-tick {
+      font-size: 10px;
     }
     .message {
       color: var(--secondary-text-color);
