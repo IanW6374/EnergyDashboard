@@ -134,8 +134,8 @@ or toolbar width needs a different offset. Numeric values are treated as pixels.
 On desktop, the default left offset is Home Assistant's drawer width, falling
 back to `256px`. On narrower screens, the default mobile left offset is `48px`
 so the tab strip does not cover Home Assistant's menu icon.
-The default right offset is `176px` so the tab strip does not cover Home
-Assistant's toolbar action icons.
+The default right offset is `176px` on desktop and `48px` on mobile so the tab
+strip does not cover Home Assistant's toolbar action icons.
 
 - `tabs_top`: distance from the top of the browser window
 - `tabs_left`: distance from the left edge, useful with a sidebar

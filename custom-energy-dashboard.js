@@ -463,6 +463,7 @@ const tabsStyle = (config) => {
     "--energy-dashboard-tabs-top": cssLength(config.tabs_top),
     "--energy-dashboard-tabs-left": cssLength(config.tabs_left),
     "--energy-dashboard-tabs-mobile-left": cssLength(config.tabs_mobile_left),
+    "--energy-dashboard-tabs-mobile-right": cssLength(config.tabs_mobile_right),
     "--energy-dashboard-tabs-right": cssLength(config.tabs_right),
     "--energy-dashboard-tabs-height": cssLength(config.tabs_height),
   };
@@ -674,6 +675,7 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     this._historyKey = "";
     this._points = [];
     this._loading = false;
+    this._datePoll = undefined;
   }
 
   setConfig(config) {
@@ -683,7 +685,28 @@ class EditableEnergyBatterySocCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._startDateWatcher();
     this._loadHistory();
+  }
+
+  disconnectedCallback() {
+    if (this._datePoll) {
+      clearInterval(this._datePoll);
+      this._datePoll = undefined;
+    }
+  }
+
+  _startDateWatcher() {
+    if (this._datePoll) {
+      return;
+    }
+    this._datePoll = window.setInterval(() => {
+      const range = energyDateRange();
+      if (range.key !== this._rangeKey) {
+        this._historyKey = "";
+        this._loadHistory();
+      }
+    }, 1000);
   }
 
   async _loadHistory() {
@@ -1765,7 +1788,7 @@ const baseStyles = () => `
     @media (max-width: 870px) {
       .tabs.top-tabs {
         left: var(--energy-dashboard-tabs-mobile-left, 48px);
-        right: var(--energy-dashboard-tabs-mobile-right, 0px);
+        right: var(--energy-dashboard-tabs-mobile-right, 48px);
         padding: 0 4px;
         scrollbar-width: none;
       }
