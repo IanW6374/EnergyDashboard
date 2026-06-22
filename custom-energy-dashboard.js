@@ -675,7 +675,8 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     this._historyKey = "";
     this._points = [];
     this._loading = false;
-    this._datePoll = undefined;
+    this._externalRange = undefined;
+    this._pendingLoad = false;
   }
 
   setConfig(config) {
@@ -685,38 +686,32 @@ class EditableEnergyBatterySocCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    this._startDateWatcher();
     this._loadHistory();
   }
 
-  disconnectedCallback() {
-    if (this._datePoll) {
-      clearInterval(this._datePoll);
-      this._datePoll = undefined;
-    }
-  }
-
-  _startDateWatcher() {
-    if (this._datePoll) {
+  set energyDateRange(range) {
+    if (!range || range.key === this._rangeKey) {
       return;
     }
-    this._datePoll = window.setInterval(() => {
-      const range = energyDateRange();
-      if (range.key !== this._rangeKey) {
-        this._historyKey = "";
-        this._loadHistory();
-      }
-    }, 1000);
+    this._externalRange = range;
+    this._historyKey = "";
+    this._loadHistory();
+    this._render();
   }
 
   async _loadHistory() {
     const entity = this._entity();
-    if (!this._hass || !entity || this._loading) {
+    if (!this._hass || !entity) {
+      this._render();
+      return;
+    }
+    if (this._loading) {
+      this._pendingLoad = true;
       this._render();
       return;
     }
 
-    const range = energyDateRange();
+    const range = this._range();
     const historyKey = `${entity}:${range.key}`;
     if (historyKey === this._historyKey) {
       return;
@@ -749,7 +744,12 @@ class EditableEnergyBatterySocCard extends HTMLElement {
       this._points = [];
     } finally {
       this._loading = false;
-      this._render();
+      if (this._pendingLoad) {
+        this._pendingLoad = false;
+        this._loadHistory();
+      } else {
+        this._render();
+      }
     }
   }
 
@@ -757,10 +757,14 @@ class EditableEnergyBatterySocCard extends HTMLElement {
     return this._config.entity || this._config.entities?.[0];
   }
 
+  _range() {
+    return this._externalRange || energyDateRange();
+  }
+
   _render() {
     const entity = this._entity();
     const title = this._config.title || "Battery SoC";
-    const range = energyDateRange();
+    const range = this._range();
     const state = entity ? this._hass?.states?.[entity] : undefined;
     const currentValue = state?.state && state.state !== "unknown" ? Number(state.state) : undefined;
     const chart = this._chart(this._points, range);
@@ -883,6 +887,8 @@ class EditableEnergyDashboard extends HTMLElement {
     this._helpers = undefined;
     this._cards = [];
     this._renderKey = "";
+    this._dateBridge = undefined;
+    this._dateBridgeKey = "";
   }
 
   setConfig(config) {
@@ -898,6 +904,10 @@ class EditableEnergyDashboard extends HTMLElement {
       }
     });
     this._updateBadges();
+  }
+
+  disconnectedCallback() {
+    this._clearDateBridge();
   }
 
   getCardSize() {
@@ -936,6 +946,7 @@ class EditableEnergyDashboard extends HTMLElement {
 
     this._renderKey = renderKey;
     this._cards = [];
+    this._clearDateBridge();
     const dashboardClass =
       this._config.show_view_tabs !== false && this._config.tabs_position !== "card"
         ? "dashboard dashboard-top-tabs"
@@ -1004,10 +1015,70 @@ class EditableEnergyDashboard extends HTMLElement {
       sidebar.hidden = sidebarElements.length === 0;
       dateFooter.replaceChildren(...dateElements);
       dateFooter.hidden = dateElements.length === 0;
+      this._startDateBridge();
     } catch (error) {
       this._cards = [];
       renderError(grid, `Unable to load energy dashboard: ${error.message}`);
     }
+  }
+
+  _clearDateBridge() {
+    if (this._dateBridge) {
+      clearInterval(this._dateBridge);
+      this._dateBridge = undefined;
+    }
+    this._dateBridgeKey = "";
+  }
+
+  _startDateBridge() {
+    this._syncEnergyDateRange();
+    if (!this._dateBridge) {
+      this._dateBridge = window.setInterval(() => this._syncEnergyDateRange(), 500);
+    }
+  }
+
+  _energyPeriodSelector() {
+    const dateShell = this._cards.find(
+      (cardShell) => cardShell.dataset.cardType === "energy-date-selection"
+    );
+    return dateShell?._energyCard?.shadowRoot?.querySelector("hui-energy-period-selector");
+  }
+
+  _selectedEnergyDateRange() {
+    const selector = this._energyPeriodSelector();
+    const start = selector?._startDate;
+    if (!(start instanceof Date)) {
+      return undefined;
+    }
+
+    const rawEnd = selector?._endDate;
+    const rangeStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const rangeEnd =
+      rawEnd instanceof Date
+        ? new Date(rawEnd)
+        : addPeriod(rangeStart, "day");
+
+    return {
+      start: rangeStart,
+      end: rangeEnd,
+      key: `${localDateString(rangeStart)}:${rangeEnd.getTime()}`,
+    };
+  }
+
+  _syncEnergyDateRange() {
+    const range = this._selectedEnergyDateRange();
+    if (!range || range.key === this._dateBridgeKey) {
+      return;
+    }
+
+    this._dateBridgeKey = range.key;
+    this._cards
+      .filter((cardShell) => cardShell.dataset.cardKey === "battery_soc")
+      .forEach((cardShell) => {
+        if (cardShell._energyCard) {
+          cardShell._energyCard.energyDateRange = range;
+        }
+      });
   }
 
   _viewTabs() {
