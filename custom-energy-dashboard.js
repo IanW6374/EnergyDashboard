@@ -184,6 +184,10 @@ const DASHBOARD_VIEWS = {
 };
 
 const DEFAULT_VIEW_KEYS = Object.keys(DASHBOARD_VIEWS);
+const DATE_CARD_TYPE = "energy-date-selection";
+const BATTERY_SOC_KEY = "battery_soc";
+const POWER_FLOW_PLUS_KEY = "power_flow_plus";
+const SANKEY_CARD_TYPES = new Set(["energy-sankey", "power-sankey", "water-sankey", "water-flow-sankey"]);
 
 const DEFAULT_CONFIG = {
   view: "electricity",
@@ -263,6 +267,26 @@ const extraConfigForTabCard = (config, viewKey, key, type) => {
   };
 };
 
+const tabState = (config, viewKey = currentViewKey(config)) => {
+  const options = tabConfig(config, viewKey);
+  const rawTab = clone(config.tab_options?.[viewKey]);
+  const view = DASHBOARD_VIEWS[viewKey] || DASHBOARD_VIEWS.electricity;
+  const hidden = new Set([
+    ...hiddenCardsFor(config.hidden_cards, viewKey),
+    ...hiddenCardsFor(rawTab.hidden_cards, viewKey),
+  ]);
+  const enabledCards = options.enabled_cards || config.enabled_cards;
+
+  return {
+    view,
+    options,
+    rawTab,
+    hidden,
+    enabled: enabledCards?.length ? new Set(enabledCards) : undefined,
+    cards: orderedCards(view.cards, options.card_order || config.card_order),
+  };
+};
+
 const dashboardCardConfig = (card, config, viewKey) => {
   const options = tabConfig(config, viewKey);
   const result = {
@@ -289,7 +313,7 @@ const applyTypeOptions = (result, config, cardType) => {
     result.link_dashboard = config.link_dashboard !== false;
   }
 
-  if (["energy-sankey", "power-sankey", "water-sankey", "water-flow-sankey"].includes(cardType)) {
+  if (SANKEY_CARD_TYPES.has(cardType)) {
     result.layout = config.layout || "auto";
     result.group_by_floor = config.group_by_floor !== false;
     result.group_by_area = config.group_by_area !== false;
@@ -297,7 +321,7 @@ const applyTypeOptions = (result, config, cardType) => {
 };
 
 const applySpecialCardOptions = (result, config, card) => {
-  if (card.key === "battery_soc") {
+  if (card.key === BATTERY_SOC_KEY) {
     const entity = config.battery_soc_entity || config.battery_soc_sensor;
     const entities = config.battery_soc_entities || (entity ? [entity] : undefined);
     if (entities?.length && !result.entities) {
@@ -307,35 +331,28 @@ const applySpecialCardOptions = (result, config, card) => {
     result.hours_to_show = result.hours_to_show || config.battery_soc_hours_to_show || 24;
   }
 
-  if (card.key === "power_flow_plus") {
+  if (card.key === POWER_FLOW_PLUS_KEY) {
     Object.assign(result, clone(config.power_flow_card_plus || config.power_flow_plus));
     result.title = result.title || "Power flow";
   }
 };
 
 const viewCards = (config, viewKey = currentViewKey(config)) => {
-  const view = DASHBOARD_VIEWS[viewKey] || DASHBOARD_VIEWS.electricity;
-  const options = tabConfig(config, viewKey);
-  const hidden = new Set([
-    ...hiddenCardsFor(config.hidden_cards, viewKey),
-    ...hiddenCardsFor(config.tab_options?.[viewKey]?.hidden_cards, viewKey),
-  ]);
-  const enabledCards = options.enabled_cards || config.enabled_cards;
-  const enabled = enabledCards?.length ? new Set(enabledCards) : undefined;
-  const cardOrder = options.card_order || config.card_order;
-  const cards = orderedCards(view.cards, cardOrder);
+  const state = tabState(config, viewKey);
 
-  return cards.filter((card) => {
-    if (!options.show_date_selection && card.type === "energy-date-selection") {
+  return state.cards.filter((card) => {
+    if (!state.options.show_date_selection && card.type === DATE_CARD_TYPE) {
       return false;
     }
-    if (card.key === "battery_soc" && !hasBatterySocConfig(config, viewKey)) {
+    if (card.key === BATTERY_SOC_KEY && !hasBatterySocConfig(config, viewKey)) {
       return false;
     }
-    if (card.key === "power_flow_plus" && !hasPowerFlowPlusConfig(config, viewKey)) {
+    if (card.key === POWER_FLOW_PLUS_KEY && !hasPowerFlowPlusConfig(config, viewKey)) {
       return false;
     }
-    return enabled ? enabled.has(card.key) || enabled.has(card.type) : !hidden.has(card.key) && !hidden.has(card.type);
+    return state.enabled
+      ? state.enabled.has(card.key) || state.enabled.has(card.type)
+      : !state.hidden.has(card.key) && !state.hidden.has(card.type);
   });
 };
 
@@ -496,6 +513,11 @@ const sidebarGridClass = (options) => {
   return ["1", "2", "3"].includes(columns) ? `grid columns-${columns}` : "grid columns-1";
 };
 
+const dashboardClass = (config) =>
+  config.show_view_tabs !== false && config.tabs_position !== "card"
+    ? "dashboard dashboard-top-tabs"
+    : "dashboard";
+
 const applyCardLayout = (element, layout) => {
   element.style.removeProperty("grid-column");
   element.style.removeProperty("grid-row");
@@ -542,7 +564,7 @@ const applyCardPosition = (element, index) => {
 
 const createCardShell = (element, card, layout, position, index) => {
   const shell = document.createElement("div");
-  shell.className = card.type === "energy-date-selection" ? "energy-date-shell" : "energy-card-shell";
+  shell.className = card.type === DATE_CARD_TYPE ? "energy-date-shell" : "energy-card-shell";
   shell.dataset.cardKey = card.key;
   shell.dataset.cardType = card.type;
   shell._energyCard = element;
@@ -551,7 +573,7 @@ const createCardShell = (element, card, layout, position, index) => {
   applyCardGridPosition(shell, position);
   applyCardPosition(shell, index);
 
-  if (card.type !== "energy-date-selection") {
+  if (card.type !== DATE_CARD_TYPE) {
     element.style.position = "static";
     element.style.inset = "auto";
   }
@@ -562,6 +584,22 @@ const createCardShell = (element, card, layout, position, index) => {
   shell.replaceChildren(element);
 
   return shell;
+};
+
+const placeCardShells = ({grid, sidebar, dateFooter}, elements, options) => {
+  const dateElements = elements.filter((element) => element.dataset.cardType === DATE_CARD_TYPE);
+  const gridElements = elements.filter((element) => element.dataset.cardType !== DATE_CARD_TYPE);
+  const sidebarKeys = sidebarCardKeys(options);
+  const sidebarElements = gridElements.filter(
+    (element) => sidebarKeys.has(element.dataset.cardKey) || sidebarKeys.has(element.dataset.cardType)
+  );
+  const mainElements = gridElements.filter((element) => !sidebarElements.includes(element));
+
+  grid.replaceChildren(...mainElements);
+  sidebar.replaceChildren(...sidebarElements);
+  sidebar.hidden = sidebarElements.length === 0;
+  dateFooter.replaceChildren(...dateElements);
+  dateFooter.hidden = dateElements.length === 0;
 };
 
 const renderError = (mount, message) => {
@@ -866,6 +904,75 @@ class EditableEnergyBatterySocCard extends HTMLElement {
   }
 }
 
+class EnergyDateBridge {
+  constructor(host) {
+    this._host = host;
+    this._interval = undefined;
+    this._rangeKey = "";
+  }
+
+  start() {
+    this.sync();
+    if (!this._interval) {
+      this._interval = window.setInterval(() => this.sync(), 500);
+    }
+  }
+
+  stop() {
+    if (this._interval) {
+      clearInterval(this._interval);
+      this._interval = undefined;
+    }
+    this._rangeKey = "";
+  }
+
+  sync() {
+    const range = this._selectedRange();
+    if (!range || range.key === this._rangeKey) {
+      return;
+    }
+
+    this._rangeKey = range.key;
+    this._batteryCards().forEach((cardShell) => {
+      if (cardShell._energyCard) {
+        cardShell._energyCard.energyDateRange = range;
+      }
+    });
+  }
+
+  _dateSelector() {
+    const dateShell = this._host._cards.find(
+      (cardShell) => cardShell.dataset.cardType === DATE_CARD_TYPE
+    );
+    return dateShell?._energyCard?.shadowRoot?.querySelector("hui-energy-period-selector");
+  }
+
+  _batteryCards() {
+    return this._host._cards.filter((cardShell) => cardShell.dataset.cardKey === BATTERY_SOC_KEY);
+  }
+
+  _selectedRange() {
+    const selector = this._dateSelector();
+    const start = selector?._startDate;
+    if (!(start instanceof Date)) {
+      return undefined;
+    }
+
+    const rawEnd = selector?._endDate;
+    const rangeStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const rangeEnd =
+      rawEnd instanceof Date
+        ? new Date(rawEnd)
+        : addPeriod(rangeStart, "day");
+
+    return {
+      start: rangeStart,
+      end: rangeEnd,
+      key: `${localDateString(rangeStart)}:${rangeEnd.getTime()}`,
+    };
+  }
+}
+
 class EditableEnergyDashboard extends HTMLElement {
   static async getConfigElement() {
     return document.createElement("editable-energy-dashboard-editor");
@@ -887,8 +994,7 @@ class EditableEnergyDashboard extends HTMLElement {
     this._helpers = undefined;
     this._cards = [];
     this._renderKey = "";
-    this._dateBridge = undefined;
-    this._dateBridgeKey = "";
+    this._dateBridge = new EnergyDateBridge(this);
   }
 
   setConfig(config) {
@@ -907,7 +1013,7 @@ class EditableEnergyDashboard extends HTMLElement {
   }
 
   disconnectedCallback() {
-    this._clearDateBridge();
+    this._dateBridge.stop();
   }
 
   getCardSize() {
@@ -946,14 +1052,10 @@ class EditableEnergyDashboard extends HTMLElement {
 
     this._renderKey = renderKey;
     this._cards = [];
-    this._clearDateBridge();
-    const dashboardClass =
-      this._config.show_view_tabs !== false && this._config.tabs_position !== "card"
-        ? "dashboard dashboard-top-tabs"
-        : "dashboard";
+    this._dateBridge.stop();
     this.shadowRoot.innerHTML = `
       ${baseStyles()}
-      <div class="${dashboardClass}">
+      <div class="${dashboardClass(this._config)}">
         ${this._config.show_view_tabs !== false ? this._viewTabs() : ""}
         <div id="badges" class="badges"></div>
         <div class="${contentClass(options)}">
@@ -999,86 +1101,12 @@ class EditableEnergyDashboard extends HTMLElement {
         })
       );
       this._cards = elements;
-      const dateElements = elements.filter(
-        (element) => element.dataset.cardType === "energy-date-selection"
-      );
-      const gridElements = elements.filter(
-        (element) => element.dataset.cardType !== "energy-date-selection"
-      );
-      const sidebarKeys = sidebarCardKeys(options);
-      const sidebarElements = gridElements.filter(
-        (element) => sidebarKeys.has(element.dataset.cardKey) || sidebarKeys.has(element.dataset.cardType)
-      );
-      const mainElements = gridElements.filter((element) => !sidebarElements.includes(element));
-      grid.replaceChildren(...mainElements);
-      sidebar.replaceChildren(...sidebarElements);
-      sidebar.hidden = sidebarElements.length === 0;
-      dateFooter.replaceChildren(...dateElements);
-      dateFooter.hidden = dateElements.length === 0;
-      this._startDateBridge();
+      placeCardShells({grid, sidebar, dateFooter}, elements, options);
+      this._dateBridge.start();
     } catch (error) {
       this._cards = [];
       renderError(grid, `Unable to load energy dashboard: ${error.message}`);
     }
-  }
-
-  _clearDateBridge() {
-    if (this._dateBridge) {
-      clearInterval(this._dateBridge);
-      this._dateBridge = undefined;
-    }
-    this._dateBridgeKey = "";
-  }
-
-  _startDateBridge() {
-    this._syncEnergyDateRange();
-    if (!this._dateBridge) {
-      this._dateBridge = window.setInterval(() => this._syncEnergyDateRange(), 500);
-    }
-  }
-
-  _energyPeriodSelector() {
-    const dateShell = this._cards.find(
-      (cardShell) => cardShell.dataset.cardType === "energy-date-selection"
-    );
-    return dateShell?._energyCard?.shadowRoot?.querySelector("hui-energy-period-selector");
-  }
-
-  _selectedEnergyDateRange() {
-    const selector = this._energyPeriodSelector();
-    const start = selector?._startDate;
-    if (!(start instanceof Date)) {
-      return undefined;
-    }
-
-    const rawEnd = selector?._endDate;
-    const rangeStart = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    const rangeEnd =
-      rawEnd instanceof Date
-        ? new Date(rawEnd)
-        : addPeriod(rangeStart, "day");
-
-    return {
-      start: rangeStart,
-      end: rangeEnd,
-      key: `${localDateString(rangeStart)}:${rangeEnd.getTime()}`,
-    };
-  }
-
-  _syncEnergyDateRange() {
-    const range = this._selectedEnergyDateRange();
-    if (!range || range.key === this._dateBridgeKey) {
-      return;
-    }
-
-    this._dateBridgeKey = range.key;
-    this._cards
-      .filter((cardShell) => cardShell.dataset.cardKey === "battery_soc")
-      .forEach((cardShell) => {
-        if (cardShell._energyCard) {
-          cardShell._energyCard.energyDateRange = range;
-        }
-      });
   }
 
   _viewTabs() {
@@ -1457,17 +1485,12 @@ class EditableEnergyDashboardEditor extends HTMLElement {
     const viewKey = DEFAULT_VIEW_KEYS.includes(this._editTab)
       ? this._editTab
       : currentViewKey(this._config);
-    const cards = DASHBOARD_VIEWS[viewKey]?.cards || DASHBOARD_VIEWS.electricity.cards;
+    const state = tabState(this._config, viewKey);
     const visibleTabs = new Set(this._config.visible_tabs || DEFAULT_VIEW_KEYS);
-    const options = tabConfig(this._config, viewKey);
-    const rawTab = clone(this._config.tab_options?.[viewKey]);
+    const {options, rawTab, hidden: hiddenCards} = state;
     const cardLayout = clone(rawTab.card_layout);
     const cardOrder = rawTab.card_order || [];
-    const hiddenCards = new Set([
-      ...hiddenCardsFor(this._config.hidden_cards, viewKey),
-      ...hiddenCardsFor(this._config.tab_options?.[viewKey]?.hidden_cards, viewKey),
-    ]);
-    const orderedEditorCards = orderedCards(cards, rawTab.card_order);
+    const orderedEditorCards = state.cards;
     const allCards = orderedEditorCards.map((card) => card.key);
 
     return `
